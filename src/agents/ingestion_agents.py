@@ -45,7 +45,7 @@ def structure_and_toc_node(state: Dict[str, Any], llm: ChatOpenAI) -> Dict[str, 
     return state
 
 
-def key_concepts_and_summary_node(
+def key_concepts_node(
     state: Dict[str, Any],
     llm: ChatOpenAI,
 ) -> Dict[str, Any]:
@@ -53,21 +53,33 @@ def key_concepts_and_summary_node(
     pages = ingestion.get("pages", [])
     joined = "\n\n".join(pages[:15])
 
-    # TODO: parallelize this
     concepts_text = simple_llm_call(
         llm,
         "You extract 5-15 key concepts from lecture material.",
         f"Extract key concepts and short definitions from: \n\n{joined}",
     )
+
+    ingestion["key_concepts"] = [
+        c.strip() for c in concepts_text.split("\n") if c.strip()
+    ]
+    state["ingestion"] = ingestion
+    return state
+
+
+def summary_node(
+    state: Dict[str, Any],
+    llm: ChatOpenAI,
+) -> Dict[str, Any]:
+    ingestion = state.get("ingestion", {})
+    pages = ingestion.get("pages", [])
+    joined = "\n\n".join(pages[:15])
+
     summary_text = simple_llm_call(
         llm,
         "You summarize lectures for students.",
         f"Summarize the lecture in 3-6 concise paragraphs: \n\n{joined}",
     )
 
-    ingestion["key_concepts"] = [
-        c.strip() for c in concepts_text.split("\n") if c.strip()
-    ]
     ingestion["summary"] = summary_text
     state["ingestion"] = ingestion
     return state
