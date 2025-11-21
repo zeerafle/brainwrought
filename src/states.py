@@ -2,6 +2,7 @@ from typing import Any, Dict, List, TypedDict
 
 
 class IngestionState(TypedDict, total=False):
+    raw_text: str  # Add this field
     pdf_path: str
     pages: List[str]
     toc: List[Dict[str, Any]]
@@ -35,10 +36,28 @@ class ProductionState(TypedDict, total=False):
 class PipelineState(TypedDict, total=False):
     """
     Top-level state passed through the entire pipeline.
-    You can keep everything in one big dict for simplicity.
+    Flattened structure allows parallel nodes to update different keys without conflicts.
     """
 
-    ingestion: IngestionState
-    story: StoryStudioState
-    production: ProductionState
-    # you can add more global fields (user settings, LMS config, etc.)
+    # Ingestion fields
+    raw_text: str
+    pdf_path: str
+    pages: List[str]
+    toc: List[Dict[str, Any]]
+    key_concepts: List[str]
+    summary: str
+    quiz_items: List[Dict[str, Any]]
+
+    # Story Studio fields
+    audience_profile: Dict[str, Any]
+    style_profile: Dict[str, Any]
+    hook_ideas: List[str]
+    meme_concepts: List[str]
+    scenes: List[Dict[str, Any]]
+    asset_plan: List[Dict[str, Any]]
+
+    # Production fields
+    voice_timing: List[Dict[str, Any]]
+    video_timeline: Dict[str, Any]
+    qc_notes: List[str]
+    export_metadata: Dict[str, Any]

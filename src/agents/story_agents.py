@@ -8,9 +8,7 @@ from agents.llm_utils import simple_llm_call
 def audience_and_style_profiler_node(
     state: Dict[str, Any], llm: ChatOpenAI
 ) -> Dict[str, Any]:
-    ingestion = state.get("ingestion", {})
-    story = state.get("story", {})
-    summary = ingestion.get("summary", "")
+    summary = state.get("summary", "")
 
     profile_text = simple_llm_call(
         llm,
@@ -28,10 +26,10 @@ def audience_and_style_profiler_node(
         f"\n\nSummary:\n{summary}\n\nAudience Profiles:\n{profile_text}",
     )
 
-    story["audience_profile"] = {"raw": profile_text}
-    story["style_profile"] = {"raw": style_text}
-    state["story"] = story
-    return state
+    return {
+        "audience_profile": {"raw": profile_text},
+        "style_profile": {"raw": style_text},
+    }
 
 
 # TODO: move to its own agent
@@ -42,14 +40,13 @@ def audience_and_style_profiler_node(
 def hook_and_meme_concept_node(
     state: Dict[str, Any], llm: ChatOpenAI
 ) -> Dict[str, Any]:
-    story = state.get("story", {})
-    audience_profile = story.get("audience_profile", {})
-    style_profile = story.get("style_profile", {})
-    ingestion = state.get("ingestion", {})
-    summary = ingestion.get("summary", "")
+    audience_profile = state.get("audience_profile", {})
+    style_profile = state.get("style_profile", {})
+    summary = state.get("summary", "")
 
     # TODO: structured output
     # TODO: assign Grok to look for hooks and meme concepts
+    # TODO: split and parallelize this
     hooks_text = simple_llm_call(
         llm,
         "You write viral hooks and meme concepts for short-form educational content",
@@ -59,21 +56,16 @@ def hook_and_meme_concept_node(
         f"Summary:\n{summary}",
     )
 
-    story["meme_concepts"] = story["hook_ideas"] = [
-        line for line in hooks_text.split("\n") if line.strip()
-    ]
-    state["story"] = story
-    return state
+    hooks_ideas = [line for line in hooks_text.split("\n") if line.strip()]
+    return {"meme_concepts": hooks_ideas, "hook_ideas": hooks_ideas}
 
 
 def scene_by_scene_script_node(
     state: Dict[str, Any], llm: ChatOpenAI
 ) -> Dict[str, Any]:
-    ingestion = state.get("ingestion", {})
-    story = state.get("story", {})
-    summary = ingestion.get("summary", "")
-    key_concepts = ingestion.get("key_concepts", [])
-    hooks = story.get("hook_ideas", [])
+    summary = state.get("summary", "")
+    key_concepts = state.get("key_concepts", [])
+    hooks = state.get("hook_ideas", [])
 
     # TODO: structured output
     # TODO: asign grok thinking to generate the scene
@@ -85,15 +77,12 @@ def scene_by_scene_script_node(
         f"Summary:\n{summary}\n\nKey concepts:\n{key_concepts}\n\nHooks:\n{hooks}",
     )
 
-    story["scenes"] = [{"raw": script_text}]
-    state["story"] = story
-    return state
+    return {"scenes": [{"raw": script_text}]}
 
 
 # TODO: find a way to get assets
 def asset_planner_node(state: Dict[str, Any], llm: ChatOpenAI) -> Dict[str, Any]:
-    story = state.get("story", {})
-    scenes = story.get("scenes", [])
+    scenes = state.get("scenes", [])
 
     plan_text = simple_llm_call(
         llm,
@@ -102,6 +91,4 @@ def asset_planner_node(state: Dict[str, Any], llm: ChatOpenAI) -> Dict[str, Any]
         f"BGM mood, and SFX.\n\nScenes:\n{scenes}",
     )
 
-    story["asset_plan"] = [{"raw": plan_text}]
-    state["story"] = story
-    return state
+    return {"asset_plan": [{"raw": plan_text}]}

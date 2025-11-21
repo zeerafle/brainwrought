@@ -9,3 +9,7 @@ wheels/
 # Virtual environments
 .venv
 .env
+CLIPS basics.pdf
+graph.png
+graph.mmd
+src/generate_graphs.py

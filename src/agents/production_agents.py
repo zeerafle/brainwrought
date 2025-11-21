@@ -6,30 +6,25 @@ from .llm_utils import simple_llm_call
 
 
 def voice_and_timing_node(state: Dict[str, Any], llm: ChatOpenAI) -> Dict[str, Any]:
-    story = state.get("story", {})
-    production = state.get("production", {})
-    scenes = story.get("scenes", [])
+    scenes = state.get("scenes", [])
 
+    # TODO: structured output
     vt_text = simple_llm_call(
         llm,
         "You derive voice-over lines and approximate timings for each scene.",
         f"For each scene below, assign VO lines and duration in seconds.\n\nScenes:\n{scenes}",
     )
 
-    production["voice_timing"] = [{"raw": vt_text}]
-    state["production"] = production
-    return state
+    return {"voice_timing": [{"raw": vt_text}]}
 
 
 def video_editor_renderer_node(
     state: Dict[str, Any],
     llm: ChatOpenAI,
 ) -> Dict[str, Any]:
-    story = state.get("story", {})
-    production = state.get("production", {})
-    scenes = story.get("scenes", [])
-    asset_plan = story.get("asset_plan", [])
-    voice_timing = production.get("voice_timing", [])
+    scenes = state.get("scenes", [])
+    asset_plan = state.get("asset_plan", [])
+    voice_timing = state.get("voice_timing", [])
 
     timeline_text = simple_llm_call(
         llm,
@@ -39,14 +34,12 @@ def video_editor_renderer_node(
         f"Scenes:\n{scenes}\n\nAssets:\n{asset_plan}\n\nVoice/timing:\n{voice_timing}",
     )
 
-    production["video_timeline"] = {"raw": timeline_text}
-    state["production"] = production
-    return state
+    return {"video_timeline": {"raw": timeline_text}}
 
 
+# TODO: find a way to make this useful (e.g. reiterate to the previous node)
 def qc_and_safety_node(state: Dict[str, Any], llm: ChatOpenAI) -> Dict[str, Any]:
-    production = state.get("production", {})
-    timeline = production.get("video_timeline", {})
+    timeline = state.get("video_timeline", {})
 
     qc_text = simple_llm_call(
         llm,
@@ -54,15 +47,12 @@ def qc_and_safety_node(state: Dict[str, Any], llm: ChatOpenAI) -> Dict[str, Any]
         f"Review this planned video timeline and list potential issues or fact checks.\n\n{timeline}",
     )
 
-    production["qc_notes"] = [qc_text]
-    state["production"] = production
-    return state
+    return {"qc_notes": [qc_text]}
 
 
 def deliver_export_node(state: Dict[str, Any], llm: ChatOpenAI) -> Dict[str, Any]:
-    production = state.get("production", {})
-    timeline = production.get("video_timeline", {})
-    qc_notes = production.get("qc_notes", [])
+    timeline = state.get("video_timeline", {})
+    qc_notes = state.get("qc_notes", [])
 
     export_text = simple_llm_call(
         llm,
@@ -73,6 +63,4 @@ def deliver_export_node(state: Dict[str, Any], llm: ChatOpenAI) -> Dict[str, Any
         f"Timeline:\n{timeline}\n\nQC:\n{qc_notes}",
     )
 
-    production["export_metadata"] = {"raw": export_text}
-    state["production"] = production
-    return state
+    return {"export_metadata": {"raw": export_text}}
