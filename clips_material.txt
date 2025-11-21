@@ -1,0 +1,140 @@
+IntroductionCLIPS
+to
+Objectives
+•••••Learn what type of language CLIPS is
+Study the notation (syntax) used by CLIPS
+Learn the meaning of a field and what types exit
+Learn how to launch and exit from CLIPS
+Learn how to represent, add, remove, modified,
+and duplicated in CLIPS
+2
+Objectives
+••••Learn how to debug programs using the watch
+command
+Learn how to use the deffacts construct to define
+a group of facts
+Learn how to use the agenda command and
+execute CLIPS programs
+Learn about commands that can manipulate
+constructs
+3
+Objectives
+•••••Learn how to use the printout command
+Learn how to use multiple rules
+Learn how to use the set-break command
+Learn how to use the load and save constructs
+Learn how to use variables, single and multifield
+wildcards, and comment constructs
+4
+What is CLIPS?
+••CLIPS is a multiparadigm programming
+language that provides support for:
+– Rule-based
+– Object-oriented
+– Procedural programming
+Syntactically, CLIPS resembles:
+– Eclipse
+– CLIPS/R2
+– JESS
+5
+Other CLIPS Characteristics
+•••CLIPS supports only forward-chaining rules.
+The OOP capabilities of CLIPS are referred to as
+CLIPS Object-Oriented Language (COOL).
+The procedural language capabilities of CLIPS
+are similar to languages such as:
+– C
+– Ada
+– Pascal
+– Lisp
+6
+•••CLIPS Characteristics
+CLIPS is an acronym for C Language Integrated
+Production System.
+CLIPS was designed using the C language at the
+NASA/Johnson Space Center.
+CLIPS is portable – PC Æ CRAY.
+7
+CLIPS Notation
+•••Symbols other than those delimited by < >, [ ], or
+{ } should be typed exactly as shown.
+[ ] mean the contents are optional and < > mean
+that a replacement is to be made.
+* following a description means that the
+description can be replaced by zero or more
+occurrences of the specified value.
+8
+CLIPS Notation
+•Descriptions followed by + mean that one or
+more values specified by description should be
+used in place of the syntax description.
+•A vertical bar | indicates a choice among one or
+more of the items separated by the bars.
+9
+Fields
+•To build a knowledge base, CLIPS must read
+input from keyboard / files to execute commands
+and load programs.
+••During the execution process, CLIPS groups
+symbols together into tokens – groups of
+characters that have the same meaning.
+A field is a special type of token of which there
+are 8 types.
+10
+•••Numeric Fields
+The floats and integers make up the numeric
+fields – simply numbers.
+Integers have only a sign and digits.
+Floats have a decimal and possibly “e” for
+scientific notation.
+11
+Symbol Fields
+••Symbols begin with printable ASCII characters
+followed by zero or more characters, followed by
+a delimiter.
+CLIPS is case sensitive.
+12
+String Fields
+•••Strings must begin and end with double quotation
+marks.
+Spaces w/in the string are significant.
+The actual delimiter symbols can be included in a
+string by preceding the character with a
+backslash.
+13
+Address Fields
+•External addresses represent the address of an
+external data structure returned by a user-defined
+function.
+•Fact address fields are used to refer to a specific
+fact.
+•Instance Name / Address field – instances are
+similar to facts addresses but refer to the instance
+rather than a fact.
+14
+Entering / Exiting CLIPS
+••••The CLIPS prompt is: CLIPS>
+This is the type-level mode where commands can
+be entered.
+To exit CLIPS, one types: CLIPS> (exit) 
+CLIPS will accept input from the user / evaluate
+it / return an appropriate response:
+CLIPS> (+ 3 4)  Æ value 7 would be returned.
+15
+Facts and CLIPS
+•••To solve a problem, CLIPS must have data or
+information with which to reason.
+Each chunk of information is called a fact.
+Facts consist of:
+– Relation name (symbolic field)
+– Zero or more slots w/associated values
+16
+Example Fact in CLIPS
+17
+Deftemplate
+••Before facts can be constructed, CLIPS must be
+informed of the list of valid slots for a given
+relation name.
+A deftemplate is used to describe groups of facts
+sharing the same relation name and contain
+common information.

@@ -6,5 +6,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "gradio>=5.49.1",
+    "langchain-openai>=1.0.3",
     "langgraph>=1.0.3",
+    "python-dotenv>=1.2.1",
 ]

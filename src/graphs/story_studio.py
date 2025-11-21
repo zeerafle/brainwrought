@@ -1,0 +1,43 @@
+from typing import Any, Dict
+
+from langchain_openai import ChatOpenAI
+from langgraph.graph import END, START, StateGraph
+
+from agents.story_agents import (
+    asset_planner_node,
+    audience_and_style_profiler_node,
+    hook_and_meme_concept_node,
+    scene_by_scene_script_node,
+)
+from config import get_llm
+from states import PipelineState
+
+
+def build_story_studio_graph(llm: ChatOpenAI | None = None):
+    llm = llm or get_llm()
+
+    def audience_and_style_profiler(state: Dict[str, Any]):
+        return audience_and_style_profiler_node(state, llm)
+
+    def hook_and_meme_concept(state: Dict[str, Any]) -> Dict[str, Any]:
+        return hook_and_meme_concept_node(state, llm)
+
+    def scene_by_scene_script(state: Dict[str, Any]) -> Dict[str, Any]:
+        return scene_by_scene_script_node(state, llm)
+
+    def asset_planner(state: Dict[str, Any]) -> Dict[str, Any]:
+        return asset_planner_node(state, llm)
+
+    graph = StateGraph(PipelineState)
+    graph.add_node(audience_and_style_profiler)
+    graph.add_node(hook_and_meme_concept)
+    graph.add_node(scene_by_scene_script)
+    graph.add_node(asset_planner)
+
+    graph.add_edge(START, "audience_and_style_profiler")
+    graph.add_edge("audience_and_style_profiler", "hook_and_meme_concept")
+    graph.add_edge("hook_and_meme_concept", "scene_by_scene_script")
+    graph.add_edge("scene_by_scene_script", "asset_planner")
+    graph.add_edge("asset_planner", END)
+
+    return graph.compile()
