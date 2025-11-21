@@ -53,6 +53,7 @@ def key_concepts_and_summary_node(
     pages = ingestion.get("pages", [])
     joined = "\n\n".join(pages[:15])
 
+    # TODO: parallelize this
     concepts_text = simple_llm_call(
         llm,
         "You extract 5-15 key concepts from lecture material.",
@@ -77,6 +78,7 @@ def quiz_generator_node(state: Dict[str, Any], llm: ChatOpenAI) -> Dict[str, Any
     concepts = ingestion.get("key_concepts", [])
     summary = ingestion.get("summary", "")
 
+    # TODO: structured output
     quiz_text = simple_llm_call(
         llm,
         "You create quiz questions and answers from lecture material.",

@@ -14,17 +14,31 @@ def audience_and_style_profiler_node(
 
     profile_text = simple_llm_call(
         llm,
-        "You design audience and style profiles for educational short-form videos.",
+        "You design audience profiles for educational short-form videos.",
         f"Given this lecture summary, propose an ideal TikTok/shorts-style audience profile "
         f"and tone/style guidelines.\n\nSummary:\n{summary}",
     )
 
+    # TODO: structured output
+    # TODO: include voice tone description for tts later
+    style_text = simple_llm_call(
+        llm,
+        "You design an engaging delivery style profiles for educational short-form videos.",
+        "Given this lecture summary and audience profiles, propose an ideal TikTok/shorts-style delivery tone/style guidelines "
+        f"\n\nSummary:\n{summary}\n\nAudience Profiles:\n{profile_text}",
+    )
+
     story["audience_profile"] = {"raw": profile_text}
-    story["style_profile"] = {"raw": profile_text}
+    story["style_profile"] = {"raw": style_text}
     state["story"] = story
     return state
 
 
+# TODO: move to its own agent
+# integrate with Bluesky, Tiktok MCP
+# analyze the most viral education video for the hooks
+# get the most current meme/brainrot trend
+# insert it into concept
 def hook_and_meme_concept_node(
     state: Dict[str, Any], llm: ChatOpenAI
 ) -> Dict[str, Any]:
@@ -34,6 +48,8 @@ def hook_and_meme_concept_node(
     ingestion = state.get("ingestion", {})
     summary = ingestion.get("summary", "")
 
+    # TODO: structured output
+    # TODO: assign Grok to look for hooks and meme concepts
     hooks_text = simple_llm_call(
         llm,
         "You write viral hooks and meme concepts for short-form educational content",
@@ -59,6 +75,8 @@ def scene_by_scene_script_node(
     key_concepts = ingestion.get("key_concepts", [])
     hooks = story.get("hook_ideas", [])
 
+    # TODO: structured output
+    # TODO: asign grok thinking to generate the scene
     script_text = simple_llm_call(
         llm,
         "You write scene-by-scene scripts for 30-90 second educational brainrot-style videos.",
@@ -72,6 +90,7 @@ def scene_by_scene_script_node(
     return state
 
 
+# TODO: find a way to get assets
 def asset_planner_node(state: Dict[str, Any], llm: ChatOpenAI) -> Dict[str, Any]:
     story = state.get("story", {})
     scenes = story.get("scenes", [])
