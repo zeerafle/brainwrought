@@ -1,6 +1,6 @@
 from typing import Any, Dict
 
-from langchain_openai import ChatOpenAI
+from langchain_core.language_models import BaseChatModel
 from langgraph.graph import END, START, StateGraph
 
 from config import get_llm
@@ -10,7 +10,7 @@ from graphs.story_studio import build_story_studio_graph
 from states import PipelineState
 
 
-def build_main_graph(llm: ChatOpenAI | None = None):
+def build_main_graph(llm: BaseChatModel | None = None):
     llm = llm or get_llm()
 
     ingestion_graph = build_ingestion_graph(llm)

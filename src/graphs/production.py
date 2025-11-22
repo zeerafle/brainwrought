@@ -1,6 +1,6 @@
 from typing import Any, Dict
 
-from langchain_openai import ChatOpenAI
+from langchain_core.language_models import BaseChatModel
 from langgraph.graph import END, START, StateGraph
 
 from agents.production_agents import (
@@ -13,7 +13,7 @@ from config import get_llm
 from states import PipelineState
 
 
-def build_production_graph(llm: ChatOpenAI | None = None):
+def build_production_graph(llm: BaseChatModel | None = None):
     llm = llm or get_llm()
 
     def voice_and_timing(state: Dict[str, Any]) -> Dict[str, Any]:

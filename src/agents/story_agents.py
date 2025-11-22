@@ -1,12 +1,12 @@
 from typing import Any, Dict
 
-from langchain_openai import ChatOpenAI
+from langchain_core.language_models import BaseChatModel
 
 from agents.llm_utils import simple_llm_call
 
 
 def audience_and_style_profiler_node(
-    state: Dict[str, Any], llm: ChatOpenAI
+    state: Dict[str, Any], llm: BaseChatModel
 ) -> Dict[str, Any]:
     summary = state.get("summary", "")
 
@@ -14,7 +14,7 @@ def audience_and_style_profiler_node(
         llm,
         "You design audience profiles for educational short-form videos.",
         f"Given this lecture summary, propose an ideal TikTok/shorts-style audience profile "
-        f"and tone/style guidelines.\n\nSummary:\n{summary}",
+        f"\n\nSummary:\n{summary}",
     )
 
     # TODO: structured output
@@ -38,7 +38,7 @@ def audience_and_style_profiler_node(
 # get the most current meme/brainrot trend
 # insert it into concept
 def hook_and_meme_concept_node(
-    state: Dict[str, Any], llm: ChatOpenAI
+    state: Dict[str, Any], llm: BaseChatModel
 ) -> Dict[str, Any]:
     audience_profile = state.get("audience_profile", {})
     style_profile = state.get("style_profile", {})
@@ -61,7 +61,7 @@ def hook_and_meme_concept_node(
 
 
 def scene_by_scene_script_node(
-    state: Dict[str, Any], llm: ChatOpenAI
+    state: Dict[str, Any], llm: BaseChatModel
 ) -> Dict[str, Any]:
     summary = state.get("summary", "")
     key_concepts = state.get("key_concepts", [])
@@ -81,7 +81,7 @@ def scene_by_scene_script_node(
 
 
 # TODO: find a way to get assets
-def asset_planner_node(state: Dict[str, Any], llm: ChatOpenAI) -> Dict[str, Any]:
+def asset_planner_node(state: Dict[str, Any], llm: BaseChatModel) -> Dict[str, Any]:
     scenes = state.get("scenes", [])
 
     plan_text = simple_llm_call(

@@ -1,6 +1,6 @@
 from typing import Any, Dict
 
-from langchain_openai import ChatOpenAI
+from langchain_core.language_models import BaseChatModel
 from langgraph.graph import END, START, StateGraph
 
 from agents.story_agents import (
@@ -13,7 +13,7 @@ from config import get_llm
 from states import PipelineState
 
 
-def build_story_studio_graph(llm: ChatOpenAI | None = None):
+def build_story_studio_graph(llm: BaseChatModel | None = None):
     llm = llm or get_llm()
 
     def audience_and_style_profiler(state: Dict[str, Any]):

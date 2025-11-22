@@ -1,11 +1,11 @@
 from typing import Any, Dict
 
-from langchain_openai import ChatOpenAI
+from langchain_core.language_models import BaseChatModel
 
 from .llm_utils import simple_llm_call
 
 
-def voice_and_timing_node(state: Dict[str, Any], llm: ChatOpenAI) -> Dict[str, Any]:
+def voice_and_timing_node(state: Dict[str, Any], llm: BaseChatModel) -> Dict[str, Any]:
     scenes = state.get("scenes", [])
 
     # TODO: structured output
@@ -20,7 +20,7 @@ def voice_and_timing_node(state: Dict[str, Any], llm: ChatOpenAI) -> Dict[str, A
 
 def video_editor_renderer_node(
     state: Dict[str, Any],
-    llm: ChatOpenAI,
+    llm: BaseChatModel,
 ) -> Dict[str, Any]:
     scenes = state.get("scenes", [])
     asset_plan = state.get("asset_plan", [])
@@ -38,7 +38,7 @@ def video_editor_renderer_node(
 
 
 # TODO: find a way to make this useful (e.g. reiterate to the previous node)
-def qc_and_safety_node(state: Dict[str, Any], llm: ChatOpenAI) -> Dict[str, Any]:
+def qc_and_safety_node(state: Dict[str, Any], llm: BaseChatModel) -> Dict[str, Any]:
     timeline = state.get("video_timeline", {})
 
     qc_text = simple_llm_call(
@@ -50,7 +50,7 @@ def qc_and_safety_node(state: Dict[str, Any], llm: ChatOpenAI) -> Dict[str, Any]
     return {"qc_notes": [qc_text]}
 
 
-def deliver_export_node(state: Dict[str, Any], llm: ChatOpenAI) -> Dict[str, Any]:
+def deliver_export_node(state: Dict[str, Any], llm: BaseChatModel) -> Dict[str, Any]:
     timeline = state.get("video_timeline", {})
     qc_notes = state.get("qc_notes", [])
 

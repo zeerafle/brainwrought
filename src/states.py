@@ -47,6 +47,7 @@ class PipelineState(TypedDict, total=False):
     key_concepts: List[str]
     summary: str
     quiz_items: List[Dict[str, Any]]
+    language: str
 
     # Story Studio fields
     audience_profile: Dict[str, Any]

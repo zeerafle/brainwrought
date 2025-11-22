@@ -1,12 +1,30 @@
 from typing import Any, Dict, List
 
 from langchain_community.document_loaders import PyPDFLoader
-from langchain_openai import ChatOpenAI
+from langchain_core.language_models import BaseChatModel
+from pydantic import BaseModel, Field
 
-from agents.llm_utils import simple_llm_call
+from agents.llm_utils import simple_llm_call, structured_llm_call
 
 
-def pdf_to_pages_node(state: Dict[str, Any], llm: ChatOpenAI) -> Dict[str, Any]:
+class LectureAnalysis(BaseModel):
+    """Structured output for complete lecture analysis."""
+
+    toc: str = Field(
+        description="Hierarchical table of contents extracted from the lecture"
+    )
+    key_concepts: List[str] = Field(
+        description="List of 5-15 key concepts with short definitions",
+        min_length=5,
+        max_length=15,
+    )
+    summary: str = Field(
+        description="Comprehensive summary of the lecture in 3-6 concise paragraphs"
+    )
+    language: str = Field(description="Language of the lecture")
+
+
+def pdf_to_pages_node(state: Dict[str, Any], llm: BaseChatModel) -> Dict[str, Any]:
     """Converts a PDF file into a list of pages."""
     raw_text = state.get("raw_text", "")
     pdf_path = state.get("pdf_path", "")
@@ -27,53 +45,36 @@ def pdf_to_pages_node(state: Dict[str, Any], llm: ChatOpenAI) -> Dict[str, Any]:
     return {"pages": pages}
 
 
-def structure_and_toc_node(state: Dict[str, Any], llm: ChatOpenAI) -> Dict[str, Any]:
+def combined_analysis_node(state: Dict[str, Any], llm: BaseChatModel) -> Dict[str, Any]:
+    """Combined node that extracts TOC, key concepts, and summary in one call."""
     pages: List[str] = state.get("pages", [])
-    joined = "\n\n".join(pages[:10])
 
-    toc_text = simple_llm_call(
-        llm,
-        "You extract a clean table-of-contents from lecture text.",
-        f"From the following pages, infer a hierarchical TOC. \n\n{joined}",
-    )
+    joined = "\n\n".join(pages)
 
-    return {"toc": [{"raw": toc_text}]}
+    system_prompt = """You are an expert at analyzing lecture materials.
+You extract table of contents, identify key concepts, and create summaries."""
 
+    user_prompt = f"""Analyze the following lecture pages and provide:
 
-def key_concepts_node(
-    state: Dict[str, Any],
-    llm: ChatOpenAI,
-) -> Dict[str, Any]:
-    pages = state.get("pages", [])
-    joined = "\n\n".join(pages[:15])
+1. A hierarchical table of contents (TOC) - infer the structure even if not explicitly stated
+2. 5-15 key concepts with brief definitions
+3. A comprehensive summary in 3-6 concise paragraphs
+4. What language does the lecture notes use
 
-    concepts_text = simple_llm_call(
-        llm,
-        "You extract 5-15 key concepts from lecture material.",
-        f"Extract key concepts and short definitions from: \n\n{joined}",
-    )
+Lecture content:
+{joined}"""
 
-    key_concepts = [c.strip() for c in concepts_text.split("\n") if c.strip()]
-    return {"key_concepts": key_concepts}
+    analysis = structured_llm_call(llm, system_prompt, user_prompt, LectureAnalysis)
+
+    return {
+        "toc": [{"raw": analysis.toc}],
+        "key_concepts": analysis.key_concepts,
+        "summary": analysis.summary,
+        "language": analysis.language,
+    }
 
 
-def summary_node(
-    state: Dict[str, Any],
-    llm: ChatOpenAI,
-) -> Dict[str, Any]:
-    pages = state.get("pages", [])
-    joined = "\n\n".join(pages[:15])
-
-    summary_text = simple_llm_call(
-        llm,
-        "You summarize lectures for students.",
-        f"Summarize the lecture in 3-6 concise paragraphs: \n\n{joined}",
-    )
-
-    return {"summary": summary_text}
-
-
-def quiz_generator_node(state: Dict[str, Any], llm: ChatOpenAI) -> Dict[str, Any]:
+def quiz_generator_node(state: Dict[str, Any], llm: BaseChatModel) -> Dict[str, Any]:
     concepts = state.get("key_concepts", [])
     summary = state.get("summary", "")
 
