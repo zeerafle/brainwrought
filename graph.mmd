@@ -1,0 +1,55 @@
+---
+config:
+  flowchart:
+    curve: linear
+---
+graph TD;
+	__start__([<p>__start__</p>]):::first
+	__end__([<p>__end__</p>]):::last
+	__start__ --> ingestion_pipeline\3apdf_to_pages;
+	ingestion_pipeline\3aquiz_generator --> story_studio_pipeline\3aaudience_and_style_profiler;
+	story_studio_pipeline\3aasset_planner --> production_pipeline\3avoice_and_timing;
+	production_pipeline\3adeliver_export --> __end__;
+	subgraph ingestion_pipeline
+	ingestion_pipeline\3apdf_to_pages(pdf_to_pages)
+	ingestion_pipeline\3acombined_analysis(combined_analysis)
+	ingestion_pipeline\3aquiz_generator(quiz_generator)
+	ingestion_pipeline\3acombined_analysis --> ingestion_pipeline\3aquiz_generator;
+	ingestion_pipeline\3apdf_to_pages --> ingestion_pipeline\3acombined_analysis;
+	end
+	subgraph story_studio_pipeline
+	story_studio_pipeline\3aaudience_and_style_profiler(audience_and_style_profiler)
+	story_studio_pipeline\3ascene_by_scene_script(scene_by_scene_script)
+	story_studio_pipeline\3aasset_planner(asset_planner)
+	story_studio_pipeline\3aaudience_and_style_profiler --> story_studio_pipeline\3ahook_and_meme_concept\3a__start__;
+	story_studio_pipeline\3ahook_and_meme_concept\3a__end__ --> story_studio_pipeline\3ascene_by_scene_script;
+	story_studio_pipeline\3ascene_by_scene_script --> story_studio_pipeline\3aasset_planner;
+	subgraph hook_and_meme_concept
+	story_studio_pipeline\3ahook_and_meme_concept\3a__start__(<p>__start__</p>)
+	story_studio_pipeline\3ahook_and_meme_concept\3asocial_media_trends(social_media_trends)
+	story_studio_pipeline\3ahook_and_meme_concept\3alanguage_slang(language_slang)
+	story_studio_pipeline\3ahook_and_meme_concept\3ahook_concept(hook_concept)
+	story_studio_pipeline\3ahook_and_meme_concept\3ameme_concept(meme_concept)
+	story_studio_pipeline\3ahook_and_meme_concept\3a__end__(<p>__end__</p>)
+	story_studio_pipeline\3ahook_and_meme_concept\3a__start__ --> story_studio_pipeline\3ahook_and_meme_concept\3alanguage_slang;
+	story_studio_pipeline\3ahook_and_meme_concept\3a__start__ --> story_studio_pipeline\3ahook_and_meme_concept\3asocial_media_trends;
+	story_studio_pipeline\3ahook_and_meme_concept\3alanguage_slang --> story_studio_pipeline\3ahook_and_meme_concept\3ahook_concept;
+	story_studio_pipeline\3ahook_and_meme_concept\3alanguage_slang --> story_studio_pipeline\3ahook_and_meme_concept\3ameme_concept;
+	story_studio_pipeline\3ahook_and_meme_concept\3asocial_media_trends --> story_studio_pipeline\3ahook_and_meme_concept\3ahook_concept;
+	story_studio_pipeline\3ahook_and_meme_concept\3asocial_media_trends --> story_studio_pipeline\3ahook_and_meme_concept\3ameme_concept;
+	story_studio_pipeline\3ahook_and_meme_concept\3ahook_concept --> story_studio_pipeline\3ahook_and_meme_concept\3a__end__;
+	story_studio_pipeline\3ahook_and_meme_concept\3ameme_concept --> story_studio_pipeline\3ahook_and_meme_concept\3a__end__;
+	end
+	end
+	subgraph production_pipeline
+	production_pipeline\3avoice_and_timing(voice_and_timing)
+	production_pipeline\3avideo_editor_renderer(video_editor_renderer)
+	production_pipeline\3aqc_and_safety(qc_and_safety)
+	production_pipeline\3adeliver_export(deliver_export)
+	production_pipeline\3aqc_and_safety --> production_pipeline\3adeliver_export;
+	production_pipeline\3avideo_editor_renderer --> production_pipeline\3aqc_and_safety;
+	production_pipeline\3avoice_and_timing --> production_pipeline\3avideo_editor_renderer;
+	end
+	classDef default fill:#f2f0ff,line-height:1.2
+	classDef first fill-opacity:0
+	classDef last fill:#bfb6fc

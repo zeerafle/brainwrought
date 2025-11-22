@@ -10,9 +10,7 @@ wheels/
 .venv
 .env
 *.pdf
-*.png
-graph.mmd
-src/generate_graphs.py
+agent-graph.png
 
 node_modules/
 
