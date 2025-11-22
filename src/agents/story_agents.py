@@ -32,34 +32,6 @@ def audience_and_style_profiler_node(
     }
 
 
-# TODO: move to its own agent
-# integrate with Bluesky, Tiktok MCP
-# analyze the most viral education video for the hooks
-# get the most current meme/brainrot trend
-# insert it into concept
-def hook_and_meme_concept_node(
-    state: Dict[str, Any], llm: BaseChatModel
-) -> Dict[str, Any]:
-    audience_profile = state.get("audience_profile", {})
-    style_profile = state.get("style_profile", {})
-    summary = state.get("summary", "")
-
-    # TODO: structured output
-    # TODO: assign Grok to look for hooks and meme concepts
-    # TODO: split and parallelize this
-    hooks_text = simple_llm_call(
-        llm,
-        "You write viral hooks and meme concepts for short-form educational content",
-        f"Using this audience/style profile and lecture summary, propose 5 opening hook lines "
-        f"and 5 meme / reference concepts. \n\nAudience profile: \n{audience_profile}\n\n"
-        f"Style profile: \n{style_profile}\n\n"
-        f"Summary:\n{summary}",
-    )
-
-    hooks_ideas = [line for line in hooks_text.split("\n") if line.strip()]
-    return {"meme_concepts": hooks_ideas, "hook_ideas": hooks_ideas}
-
-
 def scene_by_scene_script_node(
     state: Dict[str, Any], llm: BaseChatModel
 ) -> Dict[str, Any]:

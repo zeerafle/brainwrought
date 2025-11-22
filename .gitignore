@@ -13,3 +13,9 @@ wheels/
 *.png
 graph.mmd
 src/generate_graphs.py
+
+node_modules/
+
+mcp-servers/*
+!mcp-servers/.gitkeep
+!mcp-servers/README.md
