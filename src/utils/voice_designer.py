@@ -9,7 +9,7 @@ from typing import Any, Dict, Optional
 from elevenlabs import ElevenLabs
 from pydantic import BaseModel, Field
 
-from src.states import AudienceProfile
+from states import AudienceProfile
 
 
 class VoiceDesignConfig(BaseModel):

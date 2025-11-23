@@ -1,121 +1,24 @@
-import os
+"""Node functions for meme and trends analysis."""
+
 import random
-from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_mcp_adapters.client import MultiServerMCPClient
-from langchain_tavily import TavilySearch
 from langgraph.graph import END, START, MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode
-from pydantic import BaseModel, Field
 
-from agents.llm_utils import structured_llm_call
-
-
-# Shared MCP client initialization
-def _get_mcp_client() -> MultiServerMCPClient:
-    """Initialize MCP client with all social media servers."""
-    project_root = Path(__file__).parent.parent.parent
-    tiktok_mcp_path = project_root / "mcp-servers" / "tiktok-mcp" / "build" / "index.js"
-
-    if not tiktok_mcp_path.exists():
-        raise FileNotFoundError(
-            f"TikTok MCP not found at {tiktok_mcp_path}. "
-            "Please build it first: cd mcp-servers/tiktok-mcp && npm run build"
-        )
-
-    return MultiServerMCPClient(
-        {  # pyright: ignore[reportArgumentType]
-            "bsky-mcp-server": {
-                "transport": "stdio",
-                "command": "npx",
-                "args": [
-                    "-y",
-                    "@smithery/cli@latest",
-                    "run",
-                    "@brianellin/bsky-mcp-server",
-                    "--key",
-                    os.getenv("SMITHERY_API_KEY"),
-                    "--profile",
-                    "icy-dingo-7Py8Pi",
-                ],
-            },
-            "tiktok-mcp": {
-                "transport": "stdio",
-                "command": "node",
-                "args": [str(tiktok_mcp_path)],
-                "env": {
-                    "TIKNEURON_MCP_API_KEY": os.getenv("TIKNEURON_MCP_API_KEY", "")
-                },
-            },
-            "x-twitter-mcp-server": {
-                "transport": "stdio",
-                "command": "npx",
-                "args": [
-                    "-y",
-                    "@smithery/cli@latest",
-                    "run",
-                    "@rafaljanicki/x-twitter-mcp-server",
-                    "--key",
-                    os.getenv("SMITHERY_API_KEY"),
-                    "--profile",
-                    "icy-dingo-7Py8Pi",
-                ],
-            },
-        },
-    )
+from models.meme_models import (
+    HookConcept,
+    LanguageSlang,
+    MemeConcept,
+    TrendsAnalysis,
+)
+from tools import get_mcp_tools, get_tavily_search
+from utils.llm_utils import structured_llm_call
 
 
-# Structured output models
-class ViralExample(BaseModel):
-    """A single viral content example."""
-
-    url: str = Field(description="URL to the viral content")
-    platform: str = Field(description="Platform (tiktok, twitter, bluesky)")
-    engagement_metrics: str = Field(description="Likes, views, shares, etc.")
-    hook_or_format: str = Field(description="The hook line or format used")
-
-
-class TrendsAnalysis(BaseModel):
-    """Structured analysis of social media trends."""
-
-    viral_examples: List[ViralExample] = Field(
-        description="3-5 viral content examples", min_length=3, max_length=5
-    )
-    common_hooks: List[str] = Field(
-        description="Common opening lines or hooks", min_length=3
-    )
-    trending_formats: List[str] = Field(description="Popular content formats or memes")
-    recommendations: List[str] = Field(
-        description="Specific recommendations for content creation"
-    )
-
-
-class SlangTerm(BaseModel):
-    """A slang term with its meaning and usage."""
-
-    term: str = Field(description="The slang term or expression")
-    meaning: str = Field(description="What the term means")
-    usage_example: str = Field(description="Example of how to use it")
-
-
-class LanguageSlang(BaseModel):
-    """Current slang and language trends."""
-
-    language: str = Field(description="Target language")
-    slang_terms: List[SlangTerm] = Field(
-        description="List of current slang terms with meanings and examples",
-        min_length=5,
-    )
-    trending_phrases: List[str] = Field(
-        description="Currently trending phrases or expressions"
-    )
-    cultural_context: str = Field(description="Brief cultural context for the slang")
-
-
-# Extended state to hold structured outputs
+# Extended state classes for internal graph use
 class TrendsAgentState(MessagesState):
     """State for trends analysis agent."""
 
@@ -133,34 +36,37 @@ async def social_media_trends_node(
 ) -> Dict[str, Any]:
     """
     Analyze current social media trends using tools, then return structured output.
+
+    Args:
+        state: Pipeline state containing pages, summary, and other context.
+        llm: Language model for analysis.
+
+    Returns:
+        Dict with trends_analysis and trends_analysis_complete status.
     """
     pages = state.get("pages", [])
     summary = state.get("summary", "")
 
+    # Prepare context
     pages_snippets = [page for page in random.sample(pages, min(len(pages), 5))]
     content_snippets = ". ".join([p[:200] for p in pages_snippets])
     topic_context = summary[:500] if summary else content_snippets[:500]
 
     # Initialize tools
-    tavily_tool = TavilySearch(max_results=5, topic="general")
-    mcp_client = _get_mcp_client()
-
-    mcp_tools = await mcp_client.get_tools()
+    tavily_tool = get_tavily_search(max_results=5, topic="general")
+    mcp_tools = await get_mcp_tools()
     all_tools = [tavily_tool, *mcp_tools]
 
-    # Step 1: Tool-calling agent (collects data)
+    # Build the research graph
     def call_model(agent_state: TrendsAgentState):
         """Agent that uses tools to research trends."""
         response = llm.bind_tools(all_tools).invoke(agent_state["messages"])
         return {"messages": [response]}
 
-    # Step 2: Structured output node (formats the response)
     def respond_structured(agent_state: TrendsAgentState):
         """Convert tool results into structured output."""
-        # Get all the conversation history with tool results
         llm_with_structure = llm.with_structured_output(TrendsAnalysis)
 
-        # Create a prompt to structure the gathered information
         structure_prompt = HumanMessage(
             content="""Based on the research above, provide a structured analysis with:
             - 3-5 viral examples (with URLs, platform, metrics, and hooks)
@@ -176,15 +82,12 @@ async def social_media_trends_node(
         )
         return {"final_analysis": response}
 
-    # Step 3: Routing logic
     def should_continue(agent_state: TrendsAgentState):
         """Decide if we need more tools or can respond."""
         messages = agent_state["messages"]
         last_message = messages[-1]
-        # If no tool calls, move to structured response
         if not last_message.tool_calls:
             return "respond"
-        # Otherwise continue with tools
         return "continue"
 
     # Build the graph
@@ -231,7 +134,6 @@ Find at least 3 viral examples with their URLs and metrics."""
             {"messages": [system_msg, user_msg]}, {"recursion_limit": 15}
         )
 
-        # Return the structured output
         final_analysis = result.get("final_analysis")
 
         return {
@@ -256,23 +158,27 @@ async def language_slang_node(
 ) -> Dict[str, Any]:
     """
     Search for language-specific slang with structured output.
+
+    Args:
+        state: Pipeline state containing language and summary context.
+        llm: Language model for analysis.
+
+    Returns:
+        Dict with slang_analysis and slang_analysis_complete status.
     """
     language = state.get("language", "English")
     topic_context = state.get("summary", "")[:500]
 
     # Initialize tools
-    tavily_tool = TavilySearch(max_results=5, topic="general")
-    mcp_client = _get_mcp_client()
-
-    mcp_tools = await mcp_client.get_tools()
+    tavily_tool = get_tavily_search(max_results=5, topic="general")
+    mcp_tools = await get_mcp_tools()
     all_tools = [tavily_tool, *mcp_tools]
 
-    # Tool-calling agent
+    # Build the research graph
     def call_model(agent_state: SlangAgentState):
         response = llm.bind_tools(all_tools).invoke(agent_state["messages"])
         return {"messages": [response]}
 
-    # Structured output node
     def respond_structured(agent_state: SlangAgentState):
         llm_with_structure = llm.with_structured_output(LanguageSlang)
 
@@ -291,7 +197,6 @@ async def language_slang_node(
         )
         return {"final_slang": response}
 
-    # Routing
     def should_continue(agent_state: SlangAgentState):
         if not agent_state["messages"][-1].tool_calls:
             return "respond"
@@ -355,19 +260,24 @@ Find at least 5 slang terms with meanings and examples."""
         }
 
 
-class HookConcept(BaseModel):
-    ideas: List[str] = Field(
-        description="List of hook ideas", min_length=3, max_length=5
-    )
-
-
 def hook_concept_node(state: Dict[str, Any], llm: BaseChatModel) -> Dict[str, Any]:
+    """
+    Generate hook concepts based on audience, style, and trends.
+
+    Args:
+        state: Pipeline state with audience_profile, style_profile, summary, and analyses.
+        llm: Language model for generation.
+
+    Returns:
+        Dict with hook_ideas list.
+    """
     audience_profile = state.get("audience_profile")
     style_profile = state.get("style_profile")
     summary = state.get("summary")
     trend_analysis = state.get("trend_analysis")
     slang_analysis = state.get("slang_analysis")
 
+    # TODO: include current time for recent searches
     hooks = structured_llm_call(
         llm,
         "You write viral hooks concepts for short-form educational content",
@@ -383,20 +293,17 @@ def hook_concept_node(state: Dict[str, Any], llm: BaseChatModel) -> Dict[str, An
     return {"hook_ideas": hooks.ideas}
 
 
-class MemeConceptDetails(BaseModel):
-    meme_name_reference: str = Field(description="The name or reference of the meme")
-    text_to_add: List[str] = Field(description="The text to add to the meme")
-
-
-class MemeConcept(BaseModel):
-    meme_concepts: List[MemeConceptDetails] = Field(
-        description="List of meme name/reference and its additional text",
-        min_length=3,
-        max_length=5,
-    )
-
-
 def meme_concept_node(state: Dict[str, Any], llm: BaseChatModel) -> Dict[str, Any]:
+    """
+    Generate meme concepts based on audience, style, and trends.
+
+    Args:
+        state: Pipeline state with audience_profile, style_profile, summary, and analyses.
+        llm: Language model for generation.
+
+    Returns:
+        Dict with meme_concepts.
+    """
     audience_profile = state.get("audience_profile")
     style_profile = state.get("style_profile")
     summary = state.get("summary")
@@ -415,4 +322,5 @@ def meme_concept_node(state: Dict[str, Any], llm: BaseChatModel) -> Dict[str, An
         MemeConcept,
     )
 
+    # TODO: fix nested meme_concepts output
     return {"meme_concepts": memes}

@@ -3,13 +3,13 @@ from typing import Any, Dict
 from langchain_core.language_models import BaseChatModel
 from langgraph.graph import END, START, StateGraph
 
-from agents.story_agents import (
+from config import get_llm
+from graphs.hook_meme import build_hook_and_meme_graph
+from nodes.story import (
     asset_planner_node,
     audience_and_style_profiler_node,
     scene_by_scene_script_node,
 )
-from config import get_llm
-from graphs.hook_meme import build_hook_and_meme_graph
 from states import PipelineState
 
 
@@ -31,10 +31,10 @@ def build_story_studio_graph(llm: BaseChatModel | None = None):
         return asset_planner_node(state, llm)
 
     graph = StateGraph(PipelineState)
-    graph.add_node(audience_and_style_profiler)
+    graph.add_node("audience_and_style_profiler", audience_and_style_profiler)
     graph.add_node("hook_and_meme_concept", run_hook_and_meme)
-    graph.add_node(scene_by_scene_script)
-    graph.add_node(asset_planner)
+    graph.add_node("scene_by_scene_script", scene_by_scene_script)
+    graph.add_node("asset_planner", asset_planner)
 
     graph.add_edge(START, "audience_and_style_profiler")
     graph.add_edge("audience_and_style_profiler", "hook_and_meme_concept")

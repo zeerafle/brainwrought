@@ -1,10 +1,12 @@
+"""Node functions for content ingestion and analysis."""
+
 from typing import Any, Dict, List
 
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_core.language_models import BaseChatModel
 from pydantic import BaseModel, Field
 
-from agents.llm_utils import simple_llm_call, structured_llm_call
+from utils.llm_utils import simple_llm_call, structured_llm_call
 
 
 class LectureAnalysis(BaseModel):
@@ -27,7 +29,16 @@ class LectureAnalysis(BaseModel):
 
 
 def pdf_to_pages_node(state: Dict[str, Any], llm: BaseChatModel) -> Dict[str, Any]:
-    """Converts a PDF file into a list of pages."""
+    """
+    Convert PDF file into list of pages.
+
+    Args:
+        state: Pipeline state with pdf_path or raw_text.
+        llm: Language model (not used in this node).
+
+    Returns:
+        Dict with pages list.
+    """
     raw_text = state.get("raw_text", "")
     pdf_path = state.get("pdf_path", "")
 
@@ -48,7 +59,16 @@ def pdf_to_pages_node(state: Dict[str, Any], llm: BaseChatModel) -> Dict[str, An
 
 
 def combined_analysis_node(state: Dict[str, Any], llm: BaseChatModel) -> Dict[str, Any]:
-    """Combined node that extracts TOC, key concepts, and summary in one call."""
+    """
+    Extract TOC, key concepts, summary, and language in one call.
+
+    Args:
+        state: Pipeline state with pages.
+        llm: Language model for analysis.
+
+    Returns:
+        Dict with toc, key_concepts, summary, and language.
+    """
     pages: List[str] = state.get("pages", [])
 
     joined = "\n\n".join(pages)
@@ -77,6 +97,16 @@ Lecture content:
 
 
 def quiz_generator_node(state: Dict[str, Any], llm: BaseChatModel) -> Dict[str, Any]:
+    """
+    Generate quiz questions from key concepts and summary.
+
+    Args:
+        state: Pipeline state with key_concepts and summary.
+        llm: Language model for quiz generation.
+
+    Returns:
+        Dict with quiz_items list.
+    """
     concepts = state.get("key_concepts", [])
     summary = state.get("summary", "")
 

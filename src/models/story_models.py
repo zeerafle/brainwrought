@@ -1,12 +1,13 @@
-from typing import Any, Dict, List
+"""Pydantic models for story and script generation."""
 
-from langchain_core.language_models import BaseChatModel
+from typing import List
+
 from pydantic import BaseModel, Field
-
-from agents.llm_utils import structured_llm_call
 
 
 class CorePersona(BaseModel):
+    """Target audience persona details."""
+
     name: str = Field(description="Example persona name")
     age_range: str = Field(description="Age range (e.g., '18-35')")
     background: str = Field(description="Educational and professional background")
@@ -16,6 +17,8 @@ class CorePersona(BaseModel):
 
 
 class ContentPreferences(BaseModel):
+    """Content behavior and viewing preferences."""
+
     preferred_length: str = Field(description="Ideal video length range")
     consumption_habits: str = Field(description="How and when they watch videos")
     favored_formats: str = Field(description="Preferred content formats and structures")
@@ -24,6 +27,8 @@ class ContentPreferences(BaseModel):
 
 
 class VideoProductionStyle(BaseModel):
+    """Video production and delivery guidelines."""
+
     hook_examples: List[str] = Field(description="Example hooks for first 2-3 seconds")
     visual_style: str = Field(description="Visual composition and layout guidelines")
     on_screen_text: str = Field(description="How to use captions and text overlays")
@@ -32,6 +37,8 @@ class VideoProductionStyle(BaseModel):
 
 
 class AudienceAndStyleProfile(BaseModel):
+    """Complete audience and style profile for video content."""
+
     core_persona: CorePersona = Field(description="Target audience persona")
     content_preferences: ContentPreferences = Field(
         description="Content behavior and preferences"
@@ -47,31 +54,9 @@ class AudienceAndStyleProfile(BaseModel):
     )
 
 
-def audience_and_style_profiler_node(
-    state: Dict[str, Any], llm: BaseChatModel
-) -> Dict[str, Any]:
-    summary = state.get("summary", "")
-
-    profile = structured_llm_call(
-        llm,
-        "You are an expert at designing comprehensive audience profiles and delivery style guidelines for educational short-form videos (TikTok/YouTube Shorts). "
-        "Create detailed, actionable profiles that combine audience demographics, content preferences, production style, and voice tone guidance.",
-        f"Given this lecture summary, create a complete audience and style profile for a TikTok/YouTube Shorts educational video series. "
-        f"Include: core persona, content preferences, key messages, production style (hooks, visuals, pacing), CTAs, hashtags, and detailed voice tone description for TTS.\n\n"
-        f"Summary:\n{summary}",
-        AudienceAndStyleProfile,
-    )
-
-    return {
-        "audience_profile": profile.model_dump(),
-        "style_profile": {
-            "production_style": profile.production_style.model_dump(),
-            "voice_tone": profile.voice_tone_description,
-        },
-    }
-
-
 class Scene(BaseModel):
+    """Individual scene in a video script."""
+
     scene_number: int = Field(description="Sequential scene number (1, 2, 3, etc.)")
     on_screen_action: str = Field(
         description="Detailed description of visual elements, animations, transitions, memes, and on-screen composition. "
@@ -90,6 +75,8 @@ class Scene(BaseModel):
 
 
 class SceneBySceneScript(BaseModel):
+    """Complete scene-by-scene script for a video."""
+
     scenes: List[Scene] = Field(
         description="Complete list of scenes for the 30-90 second video. "
         "Typically 10-15 scenes for optimal pacing and information density."
@@ -99,44 +86,9 @@ class SceneBySceneScript(BaseModel):
     )
 
 
-def scene_by_scene_script_node(
-    state: Dict[str, Any], llm: BaseChatModel
-) -> Dict[str, Any]:
-    summary = state.get("summary", "")
-    key_concepts = state.get("key_concepts", [])
-    hooks = state.get("hook_ideas", [])
-    memes = state.get("meme_concepts")
-
-    script = structured_llm_call(
-        llm,
-        "You write scene-by-scene scripts for 30-90 second educational brainrot-style videos. "
-        "Each scene must have: on-screen action (visuals, memes, animations), dialogue/VO (narrator script), "
-        "and on-screen text (captions, code, tips). Make it fast-paced, engaging, and meme-heavy. "
-        "Include popular meme formats like Drake Hotline Bling, Distracted Boyfriend, Surprised Pikachu, Expanding Brain, etc. "
-        "For technical content, show terminal commands, code snippets, and practical examples.",
-        f"Using the following information, create a complete numbered scene-by-scene script for a brainrot-style educational video. "
-        f"Each scene should have: scene_number, on_screen_action, dialogue_vo, and on_screen_text.\n\n"
-        f"Summary:\n{summary}\n\n"
-        f"Key concepts:\n{key_concepts}\n\n"
-        f"Hooks:\n{hooks}\n\n"
-        f"Memes:\n{memes}\n\n"
-        f"Make sure to:\n"
-        f"- Start with a strong hook (first 2-3 seconds)\n"
-        f"- Include relevant memes throughout\n"
-        f"- Show practical examples and code where appropriate\n"
-        f"- End with a clear call-to-action\n"
-        f"- Keep the pace fast and engaging\n"
-        f"- Structure on-screen text with clear formatting (use \\n for line breaks, proper spacing for code blocks)",
-        SceneBySceneScript,
-    )
-
-    return {
-        "scenes": [scene.model_dump() for scene in script.scenes],
-        "total_estimated_duration": script.total_estimated_duration,
-    }
-
-
 class Assets(BaseModel):
+    """Assets required for a scene."""
+
     scene_name: str = Field(description="Name of the scene")
     video_asset: List[str] = Field(description="List of video assets for the scene")
     bgm: List[str] = Field(description="List of background music for the scene")
@@ -144,18 +96,6 @@ class Assets(BaseModel):
 
 
 class Scenes(BaseModel):
+    """Collection of scene assets."""
+
     scenes: List[Assets] = Field(description="List of scenes assets")
-
-
-def asset_planner_node(state: Dict[str, Any], llm: BaseChatModel) -> Dict[str, Any]:
-    scenes = state.get("scenes", [])
-
-    plan = structured_llm_call(
-        llm,
-        "You plan simple reusable assets (clips, BGM, SFX) for social videos.",
-        f"Given this scene-by-scene script, list for each scene the suggested video assets, "
-        f"BGM mood, and SFX.\n\nScenes:\n{scenes}",
-        Scenes,
-    )
-
-    return {"asset_plan": plan}

@@ -5,6 +5,8 @@ from langchain_core.language_models import BaseChatModel
 
 ProviderType = Literal["openai", "gemini", "vertex"]
 
+USE_MOCK_PRODUCTION = os.getenv("USE_MOCK_PRODUCTION", "false").lower() == "true"
+
 
 def get_llm(
     provider: ProviderType = "openai",

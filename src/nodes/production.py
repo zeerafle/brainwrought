@@ -1,26 +1,34 @@
-"""
-Production agents with Voice Design integration.
-Caches designed voices to avoid regeneration.
-"""
+"""Node functions for video production pipeline."""
 
 import base64
-import json
 import os
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 import modal
 from elevenlabs import ElevenLabs
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import HumanMessage, SystemMessage
 
-from .llm_utils import simple_llm_call
-from .voice_designer import VoiceDesigner
+from utils.cache import VoiceCache
+from utils.llm_utils import simple_llm_call
+from utils.voice_designer import VoiceDesigner
 
 
 def generate_video_assets_node(
     state: Dict[str, Any], llm: BaseChatModel
 ) -> Dict[str, Any]:
+    """
+    Generate video assets from scene descriptions using LTX Video model.
+
+    Args:
+        state: Pipeline state with asset_plan containing scenes and video_assets.
+        llm: Language model for refining prompts.
+
+    Returns:
+        Dict with video_filenames list.
+    """
+    from langchain_core.messages import HumanMessage, SystemMessage
+
     scenes = state.get("asset_plan", {}).get("scenes", [])
     video_assets = []
     messages_batch = []
@@ -42,80 +50,17 @@ def generate_video_assets_node(
                 ]
             )
 
-    # Execute all in parallel with a single batch call
     responses = llm.batch(messages_batch)
 
-    # Extract content from responses
     video_assets_prompt = [
         resp.content if isinstance(resp.content, str) else str(resp.content)
         for resp in responses
     ]
-    # get reference to the deployed Modal app
+
     generate_func = modal.Function.from_name("brainwrought-ltx", "LTXVideo.generate")
-    # call the remote function
     video_filenames = list(generate_func.starmap([(p,) for p in video_assets_prompt]))
 
     return {"video_filenames": video_filenames}
-
-
-# TODO: meme generation IMGFLIP
-
-
-class VoiceCache:
-    """Simple file-based cache for designed voices."""
-
-    def __init__(self, cache_dir: str = ".voice_cache"):
-        self.cache_dir = Path(cache_dir)
-        self.cache_dir.mkdir(exist_ok=True)
-        self.cache_file = self.cache_dir / "voice_cache.json"
-        self._cache = self._load_cache()
-
-    def _load_cache(self) -> Dict[str, Any]:
-        """Load cache from disk."""
-        if self.cache_file.exists():
-            with open(self.cache_file, "r") as f:
-                return json.load(f)
-        return {}
-
-    def _save_cache(self):
-        """Save cache to disk."""
-        with open(self.cache_file, "w") as f:
-            json.dump(self._cache, f, indent=2)
-
-    def get_cached_voice(self, voice_description: str, language: str) -> Optional[str]:
-        """
-        Get cached voice ID if available.
-
-        Args:
-            voice_description: Voice description used for design
-            language: Language code
-
-        Returns:
-            Voice ID string if cached, None otherwise
-        """
-        cache_key = f"{language}:{voice_description}"
-        cached_data = self._cache.get(cache_key)
-        if cached_data and isinstance(cached_data, dict):
-            return cached_data.get("voice_id")
-        return None
-
-    def cache_voice(self, voice_description: str, language: str, voice_id: str):
-        """
-        Cache a designed voice.
-
-        Args:
-            voice_description: Voice description used for design
-            language: Language code
-            voice_id: ElevenLabs voice ID
-        """
-        cache_key = f"{language}:{voice_description}"
-        self._cache[cache_key] = {
-            "voice_id": voice_id,
-            "description": voice_description,
-            "language": language,
-        }
-        self._save_cache()
-        print(f"💾 Cached voice: {cache_key} -> {voice_id}")
 
 
 def voice_and_timing_node(
@@ -129,36 +74,27 @@ def voice_and_timing_node(
     """
     Generate voice-over audio with Voice Design using existing dialogue_vo from scenes.
 
-    Features:
-    - Uses pre-generated dialogue_vo from state.scenes (no LLM regeneration)
-    - Auto-generates custom voices based on audience persona
-    - Supports multiple languages via state.language
-    - Caches designed voices to avoid regeneration
-    - Falls back to preset voices if design fails
-
     Args:
-        state: Pipeline state with scenes (containing dialogue_vo), audience_profile, language
-        llm: Language model (not used for VO text, only kept for compatibility)
-        elevenlabs_api_key: ElevenLabs API key
-        output_dir: Directory for audio files
-        use_voice_design: Whether to design custom voice (vs using presets)
-        voice_design_preview_index: Which preview to select (0-2)
+        state: Pipeline state with scenes (containing dialogue_vo), audience_profile, language.
+        llm: Language model (kept for compatibility, not used for VO text).
+        elevenlabs_api_key: ElevenLabs API key.
+        output_dir: Directory for audio files.
+        use_voice_design: Whether to design custom voice (vs using presets).
+        voice_design_preview_index: Which preview to select (0-2).
 
     Returns:
-        Dict with voice_timing containing audio and metadata
+        Dict with voice_timing containing audio and metadata.
     """
     scenes = state.get("scenes", [])
     audience_profile = state.get("audience_profile", {})
     language = state.get("language", "en")
 
-    # Initialize API
     if not elevenlabs_api_key:
         elevenlabs_api_key = os.getenv("ELEVENLABS_API_KEY", "")
 
     if not elevenlabs_api_key:
         return {"voice_timing": [{"error": "No ElevenLabs API key provided"}]}
 
-    # Phase 1: Design or select voice
     voice_cache = VoiceCache()
     voice_id = None
     voice_config = {}
@@ -172,7 +108,6 @@ def voice_and_timing_node(
 
         voice_description = designer.generate_voice_description()
 
-        # Check cache first
         cached_voice_id = voice_cache.get_cached_voice(voice_description, language)
 
         if cached_voice_id:
@@ -184,14 +119,12 @@ def voice_and_timing_node(
                 "language": language,
             }
         else:
-            # Design new voice
             print("🎨 Designing new custom voice...")
             design_result = designer.design_voice(
                 preview_selection_index=voice_design_preview_index
             )
 
             if design_result["success"]:
-                # Create permanent voice from preview
                 generated_voice_id = design_result["selected_generated_voice_id"]
                 voice_name = f"AutoVoice_{language}_{audience_profile.get('core_persona', {}).get('name', 'default')}"
 
@@ -202,7 +135,6 @@ def voice_and_timing_node(
                         voice_description=voice_description,
                     )
 
-                    # Cache the voice
                     voice_cache.cache_voice(voice_description, language, voice_id)
 
                     voice_config = {
@@ -218,19 +150,16 @@ def voice_and_timing_node(
 
                 except Exception as e:
                     print(f"⚠️  Voice creation failed, using fallback: {e}")
-                    voice_id = "JBFqnCBsd6RMkjVDRZzb"  # Fallback
+                    voice_id = "JBFqnCBsd6RMkjVDRZzb"
             else:
                 print("⚠️  Voice design failed, using fallback")
-                voice_id = "JBFqnCBsd6RMkjVDRZzb"  # Fallback
+                voice_id = "JBFqnCBsd6RMkjVDRZzb"
     else:
-        # Use preset voice
-        voice_id = "JBFqnCBsd6RMkjVDRZzb"  # Default
+        voice_id = "JBFqnCBsd6RMkjVDRZzb"
         voice_config = {"source": "preset"}
 
     print(f"🎙️  Using voice ID: {voice_id}")
 
-    # Phase 2: Extract dialogue_vo from scenes (no LLM regeneration needed)
-    # The dialogue_vo was already generated by scene_by_scene_script_node in story_agents.py
     scene_vo_data = []
     for scene in scenes:
         if isinstance(scene, dict):
@@ -255,7 +184,6 @@ def voice_and_timing_node(
 
     print(f"📝 Using pre-generated dialogue_vo from {len(scene_vo_data)} scenes")
 
-    # Phase 3: Generate audio with timestamps
     client = ElevenLabs(api_key=elevenlabs_api_key)
     output_path = Path(output_dir)
     output_path.mkdir(exist_ok=True, parents=True)
@@ -267,7 +195,6 @@ def voice_and_timing_node(
         voiceover_text = scene_data["dialogue_vo"]
 
         try:
-            # Generate with language support
             print(f"🎤 Generating audio for scene {scene_number}...")
             response = client.text_to_speech.convert_with_timestamps(
                 voice_id=voice_id,
@@ -279,11 +206,9 @@ def voice_and_timing_node(
                 language_code=language if language != "en" else None,
             )
 
-            # Save audio - response has audio_base_64 attribute
             audio_filename = f"scene_{scene_number:03d}_{language}.mp3"
             audio_filepath = output_path / audio_filename
 
-            # Extract audio from response
             if hasattr(response, "audio_base_64"):
                 audio_bytes = base64.b64decode(response.audio_base_64)
             elif hasattr(response, "audio_content"):
@@ -307,35 +232,19 @@ def voice_and_timing_node(
 
             print(f"   ✅ Audio saved: {audio_filepath}")
 
-            # Extract timestamps from alignment
-            # The alignment is a CharacterAlignmentResponseModel (Pydantic model)
             actual_duration = 0.0
             timestamps = []
 
             if hasattr(response, "alignment") and response.alignment:
                 alignment = response.alignment
 
-                # DEBUG: Print alignment structure
-                print(f"   🔍 Alignment type: {type(alignment)}")
-                print(
-                    f"   🔍 Alignment dir: {[a for a in dir(alignment) if not a.startswith('_')]}"
-                )
-
-                # Try to dump to dict to see structure
                 if hasattr(alignment, "model_dump"):
                     alignment_dict = alignment.model_dump()
-                    print(f"   🔍 Alignment dict keys: {alignment_dict.keys()}")
-                    print(
-                        f"   🔍 Alignment dict sample: {str(alignment_dict)[:200]}..."
-                    )
 
-                    # Extract character alignments
-                    # Common structures: {"characters": [...], "character_start_times_seconds": [...]}
                     if (
                         "characters" in alignment_dict
                         and "character_start_times_seconds" in alignment_dict
                     ):
-                        # Format: separate arrays for characters, starts, ends
                         characters = alignment_dict["characters"]
                         char_starts = alignment_dict["character_start_times_seconds"]
                         char_ends = alignment_dict.get(
@@ -362,15 +271,12 @@ def voice_and_timing_node(
                     elif "characters" in alignment_dict and isinstance(
                         alignment_dict["characters"], list
                     ):
-                        # Check if characters is a list of dicts with timing info
                         chars = alignment_dict["characters"]
                         if chars and isinstance(chars[0], dict) and "start" in chars[0]:
-                            # Format: [{"character": "H", "start": 0.0, "end": 0.1}, ...]
                             timestamps = chars
                             if timestamps:
                                 actual_duration = timestamps[-1]["end"]
 
-                # Try direct attribute access
                 elif hasattr(alignment, "characters") and hasattr(
                     alignment, "character_start_times_seconds"
                 ):
@@ -395,7 +301,6 @@ def voice_and_timing_node(
                 f"   ⏱️  Duration: {actual_duration:.2f}s ({len(timestamps)} timestamps)"
             )
 
-            # Get request ID
             request_id = getattr(response, "request_id", "unknown")
 
             voice_timing_results.append(
@@ -443,6 +348,16 @@ def video_editor_renderer_node(
     state: Dict[str, Any],
     llm: BaseChatModel,
 ) -> Dict[str, Any]:
+    """
+    Create video timeline from scenes, assets, and voice timing.
+
+    Args:
+        state: Pipeline state with scenes, asset_plan, and voice_timing.
+        llm: Language model for timeline generation.
+
+    Returns:
+        Dict with video_timeline.
+    """
     scenes = state.get("scenes", [])
     asset_plan = state.get("asset_plan", [])
     voice_timing = state.get("voice_timing", [])
@@ -458,8 +373,17 @@ def video_editor_renderer_node(
     return {"video_timeline": {"raw": timeline_text}}
 
 
-# TODO: find a way to make this useful (e.g. reiterate to the previous node)
 def qc_and_safety_node(state: Dict[str, Any], llm: BaseChatModel) -> Dict[str, Any]:
+    """
+    Quality check and safety review of video content.
+
+    Args:
+        state: Pipeline state with video_timeline.
+        llm: Language model for QC analysis.
+
+    Returns:
+        Dict with qc_notes list.
+    """
     timeline = state.get("video_timeline", {})
 
     qc_text = simple_llm_call(
@@ -472,6 +396,16 @@ def qc_and_safety_node(state: Dict[str, Any], llm: BaseChatModel) -> Dict[str, A
 
 
 def deliver_export_node(state: Dict[str, Any], llm: BaseChatModel) -> Dict[str, Any]:
+    """
+    Prepare export metadata for video delivery.
+
+    Args:
+        state: Pipeline state with video_timeline and qc_notes.
+        llm: Language model for metadata generation.
+
+    Returns:
+        Dict with export_metadata.
+    """
     timeline = state.get("video_timeline", {})
     qc_notes = state.get("qc_notes", [])
 
