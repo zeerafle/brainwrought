@@ -28,6 +28,7 @@ class PipelineState(TypedDict, total=False):
     slang_analysis: str
 
     # Production fields
+    video_filenames: List[str]
     voice_timing: List[Dict[str, Any]]
     video_timeline: Dict[str, Any]
     qc_notes: List[str]

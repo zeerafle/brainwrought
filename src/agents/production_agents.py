@@ -1,8 +1,52 @@
 from typing import Any, Dict
 
+import modal
 from langchain_core.language_models import BaseChatModel
+from langchain_core.messages import HumanMessage, SystemMessage
 
 from .llm_utils import simple_llm_call
+
+
+def generate_video_assets_node(
+    state: Dict[str, Any], llm: BaseChatModel
+) -> Dict[str, Any]:
+    scenes = state.get("asset_plan", {}).get("scenes", [])
+    video_assets = []
+    messages_batch = []
+
+    system_prompt = """You are a professional artist and text-to-video prompt engineer.
+    You refine the given prompt to be more detail and appropriate for text-to-video model.
+    Only respond with the refined prompt.
+    """
+
+    for scene in scenes:
+        for asset in scene["video_assets"]:
+            video_assets.append(asset)
+            messages_batch.append(
+                [
+                    SystemMessage(content=system_prompt),
+                    HumanMessage(
+                        content=f"Scene name: {scene['scene_name']}, Asset description: {asset}"
+                    ),
+                ]
+            )
+
+    # Execute all in parallel with a single batch call
+    responses = llm.batch(messages_batch)
+
+    # Extract content from responses
+    video_assets_prompt = [
+        resp.content if isinstance(resp.content, str) else str(resp.content)
+        for resp in responses
+    ]
+
+    # get reference to the deployed Modal app
+    generate_func = modal.Function.from_name("brainwrought-ltx", "LTXVideo.generate")
+
+    # call the remote function
+    video_filenames = list(generate_func.starmap([(p,) for p in video_assets_prompt]))
+
+    return {"video_filenames": video_filenames}
 
 
 def voice_and_timing_node(state: Dict[str, Any], llm: BaseChatModel) -> Dict[str, Any]:
