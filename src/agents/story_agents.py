@@ -1,8 +1,9 @@
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from langchain_core.language_models import BaseChatModel
+from pydantic import BaseModel, Field
 
-from agents.llm_utils import simple_llm_call
+from agents.llm_utils import simple_llm_call, structured_llm_call
 
 
 def audience_and_style_profiler_node(
@@ -54,15 +55,26 @@ def scene_by_scene_script_node(
     return {"scenes": [{"raw": script_text}]}
 
 
-# TODO: find a way to get assets
+class Assets(BaseModel):
+    scene_name: str = Field(description="Name of the scene")
+    video_asset: List[str] = Field(description="List of video assets for the scene")
+    bgm: List[str] = Field(description="List of background music for the scene")
+    sfx: List[str] = Field(description="List of sound effects for the scene")
+
+
+class Scenes(BaseModel):
+    scenes: List[Assets] = Field(description="List of scenes assets")
+
+
 def asset_planner_node(state: Dict[str, Any], llm: BaseChatModel) -> Dict[str, Any]:
     scenes = state.get("scenes", [])
 
-    plan_text = simple_llm_call(
+    plan = structured_llm_call(
         llm,
         "You plan simple reusable assets (clips, BGM, SFX) for social videos.",
         f"Given this scene-by-scene script, list for each scene the suggested video assets, "
         f"BGM mood, and SFX.\n\nScenes:\n{scenes}",
+        Scenes,
     )
 
-    return {"asset_plan": [{"raw": plan_text}]}
+    return {"asset_plan": plan}
