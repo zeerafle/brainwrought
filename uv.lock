@@ -284,6 +284,7 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "aiosqlite" },
+    { name = "elevenlabs" },
     { name = "gradio" },
     { name = "langchain-community" },
     { name = "langchain-google-genai" },
@@ -304,6 +305,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "aiosqlite", specifier = ">=0.21.0" },
+    { name = "elevenlabs", specifier = ">=2.24.0" },
     { name = "gradio", specifier = ">=5.49.1" },
     { name = "langchain-community", specifier = ">=0.4.1" },
     { name = "langchain-google-genai", specifier = ">=3.1.0" },
@@ -630,6 +632,23 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/b2/9d/c3b43da9515bd270df0f80548d9944e389870713cc1fe2b8fb35fe2bcefd/docstring_parser-0.17.0.tar.gz", hash = "sha256:583de4a309722b3315439bb31d64ba3eebada841f2e2cee23b99df001434c912", size = 27442, upload-time = "2025-07-21T07:35:01.868Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/55/e2/2537ebcff11c1ee1ff17d8d0b6f4db75873e3b0fb32c2d4a2ee31ecb310a/docstring_parser-0.17.0-py3-none-any.whl", hash = "sha256:cf2569abd23dce8099b300f9b4fa8191e9582dda731fd533daf54c4551658708", size = 36896, upload-time = "2025-07-21T07:35:00.684Z" },
+]
+
+[[package]]
+name = "elevenlabs"
+version = "2.24.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "httpx" },
+    { name = "pydantic" },
+    { name = "pydantic-core" },
+    { name = "requests" },
+    { name = "typing-extensions" },
+    { name = "websockets" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/48/b8/7ef371670766a09169969531bd9cfb6c3bfebe55ae479d2f009cfff4b2f7/elevenlabs-2.24.0.tar.gz", hash = "sha256:bd5278ea8521aeb463ef4649192b5aa8cedf12be7f9b3ca19c79331a7d33d305", size = 418072, upload-time = "2025-11-21T09:15:34.916Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a7/52/a21ebfa6a2cadeb3b234a4bd92a59809fbbcbb6024ee2e48774f30daf8cf/elevenlabs-2.24.0-py3-none-any.whl", hash = "sha256:b8d0435f84a3bc0592dd086b4945bd79d9430c6892bf3f75752c03bb53ae3ad6", size = 1121523, upload-time = "2025-11-21T09:15:31.77Z" },
 ]
 
 [[package]]

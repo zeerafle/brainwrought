@@ -18,3 +18,7 @@ mcp-servers/*
 !mcp-servers/.gitkeep
 !mcp-servers/README.md
 checkpoints.db
+
+.voice_cache
+test_audio_output
+src/agents/voice_persona_mapper.py

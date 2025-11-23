@@ -21,7 +21,9 @@ class LectureAnalysis(BaseModel):
     summary: str = Field(
         description="Comprehensive summary of the lecture in 3-6 concise paragraphs"
     )
-    language: str = Field(description="Language of the lecture")
+    language: str = Field(
+        description="Language of the lecture with ISO 639 language codes"
+    )
 
 
 def pdf_to_pages_node(state: Dict[str, Any], llm: BaseChatModel) -> Dict[str, Any]:
@@ -59,7 +61,7 @@ You extract table of contents, identify key concepts, and create summaries."""
 1. A hierarchical table of contents (TOC) - infer the structure even if not explicitly stated
 2. 5-15 key concepts with brief definitions
 3. A comprehensive summary in 3-6 concise paragraphs
-4. What language does the lecture notes use
+4. What language does the lecture notes use. Write in ISO 639 language codes.
 
 Lecture content:
 {joined}"""
