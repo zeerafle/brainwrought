@@ -1,13 +1,15 @@
+import asyncio
 from pathlib import Path
 
 from dotenv import load_dotenv
+from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
 from graphs.main_graph import build_main_graph
 
 load_dotenv()
 
 
-def run_pipeline(raw_text_or_pdf_path: str | Path):
+async def run_pipeline(raw_text_or_pdf_path: str | Path, thread_id: str = "default"):
     """
     Run the pipeline with either raw text or a PDF file path.
 
@@ -38,18 +40,29 @@ def run_pipeline(raw_text_or_pdf_path: str | Path):
             else str(raw_text_or_pdf_path),
         }
 
-    compiled_graph = build_main_graph()
-    result = compiled_graph.invoke(initial_state)
-    return result
+    # Create a checkpointer (persists in memory during the session)
+    async with AsyncSqliteSaver.from_conn_string("checkpoints.db") as checkpointer:
+        compiled_graph = build_main_graph(checkpointer=checkpointer)
+
+        # configuration with thread_id enables checkpointing
+        config = {"configurable": {"thread_id": thread_id}}
+
+        # if graph fails mid-way, re-running with same thread_id will resume from checkpoint
+        result = await compiled_graph.ainvoke(initial_state, config=config)
+        return result
 
 
 if __name__ == "__main__":
-    # Example with PDF path
-    sample_pdf_path = "/home/zeerafle/Projects/brainwrought/CLIPS basics.pdf"
-    result = run_pipeline(sample_pdf_path)
-    print(result.keys())
 
-    # Example with raw text
-    # raw_text = "This is some sample text content..."
-    # result = run_pipeline(raw_text)
-    # print(result.keys())
+    async def main():
+        # Example with PDF path
+        sample_pdf_path = "/home/zeerafle/Projects/brainwrought/CLIPS basics.pdf"
+        result = await run_pipeline(sample_pdf_path, thread_id="test_run_1")
+        print(result.keys())
+
+        # Example with raw text
+        # raw_text = "This is some sample text content..."
+        # result = run_pipeline(raw_text)
+        # print(result.keys())
+
+    asyncio.run(main())

@@ -17,3 +17,4 @@ node_modules/
 mcp-servers/*
 !mcp-servers/.gitkeep
 !mcp-servers/README.md
+checkpoints.db

@@ -38,6 +38,7 @@ def scene_by_scene_script_node(
     summary = state.get("summary", "")
     key_concepts = state.get("key_concepts", [])
     hooks = state.get("hook_ideas", [])
+    memes = state.get("meme_concepts")
 
     # TODO: structured output
     # TODO: asign grok thinking to generate the scene
@@ -46,7 +47,8 @@ def scene_by_scene_script_node(
         "You write scene-by-scene scripts for 30-90 second educational brainrot-style videos.",
         f"Using the following information, create a numbered scene-by-scene script. "
         f"Each scene should have: on-screen action, dialogue/VO, and on-screen text.\n\n"
-        f"Summary:\n{summary}\n\nKey concepts:\n{key_concepts}\n\nHooks:\n{hooks}",
+        f"Summary:\n{summary}\n\nKey concepts:\n{key_concepts}\n\nHooks:\n{hooks}"
+        f"Memes:\n{memes}",
     )
 
     return {"scenes": [{"raw": script_text}]}

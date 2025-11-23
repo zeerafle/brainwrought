@@ -18,16 +18,16 @@ def build_story_studio_graph(llm: BaseChatModel | None = None):
 
     hook_and_meme_concept_graph = build_hook_and_meme_graph(llm)
 
-    def audience_and_style_profiler(state: Dict[str, Any]):
+    async def audience_and_style_profiler(state: Dict[str, Any]):
         return audience_and_style_profiler_node(state, llm)
 
-    def run_hook_and_meme(state: Dict[str, Any]):
-        return hook_and_meme_concept_graph.invoke(state)
+    async def run_hook_and_meme(state: Dict[str, Any]):
+        return await hook_and_meme_concept_graph.ainvoke(state)
 
-    def scene_by_scene_script(state: Dict[str, Any]) -> Dict[str, Any]:
+    async def scene_by_scene_script(state: Dict[str, Any]) -> Dict[str, Any]:
         return scene_by_scene_script_node(state, llm)
 
-    def asset_planner(state: Dict[str, Any]) -> Dict[str, Any]:
+    async def asset_planner(state: Dict[str, Any]) -> Dict[str, Any]:
         return asset_planner_node(state, llm)
 
     graph = StateGraph(PipelineState)

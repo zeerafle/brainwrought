@@ -93,12 +93,20 @@ class TrendsAnalysis(BaseModel):
     )
 
 
+class SlangTerm(BaseModel):
+    """A slang term with its meaning and usage."""
+
+    term: str = Field(description="The slang term or expression")
+    meaning: str = Field(description="What the term means")
+    usage_example: str = Field(description="Example of how to use it")
+
+
 class LanguageSlang(BaseModel):
     """Current slang and language trends."""
 
     language: str = Field(description="Target language")
-    slang_terms: List[Dict[str, str]] = Field(
-        description="List of dicts with keys: term, meaning, usage_example",
+    slang_terms: List[SlangTerm] = Field(
+        description="List of current slang terms with meanings and examples",
         min_length=5,
     )
     trending_phrases: List[str] = Field(

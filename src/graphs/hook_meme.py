@@ -16,11 +16,11 @@ from states import PipelineState
 def build_hook_and_meme_graph(llm: BaseChatModel | None = None):
     llm = llm or get_llm()
 
-    def social_media_trends(state: Dict[str, Any]):
-        return social_media_trends_node(state, llm)
+    async def social_media_trends(state: Dict[str, Any]):
+        return await social_media_trends_node(state, llm)
 
-    def language_slang(state: Dict[str, Any]) -> Dict[str, Any]:
-        return language_slang_node(state, llm)
+    async def language_slang(state: Dict[str, Any]) -> Dict[str, Any]:
+        return await language_slang_node(state, llm)
 
     def hook_concept(state: Dict[str, Any]) -> Dict[str, Any]:
         return hook_concept_node(state, llm)
