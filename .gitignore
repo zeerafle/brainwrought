@@ -22,3 +22,4 @@ checkpoints.db
 .voice_cache
 test_audio_output
 src/utils/voice_persona_mapper.py
+assets/*
