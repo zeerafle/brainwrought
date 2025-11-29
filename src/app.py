@@ -5,8 +5,13 @@ from dotenv import load_dotenv
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
 from graphs.main_graph import build_main_graph
+from utils.cache import setup_llm_cache
 
 load_dotenv()
+
+# Enable LLM caching to save costs during testing/development
+# This will cache responses in .langchain.db
+setup_llm_cache()
 
 
 async def run_pipeline(raw_text_or_pdf_path: str | Path, thread_id: str = "default"):

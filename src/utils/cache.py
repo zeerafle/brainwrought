@@ -4,6 +4,9 @@ import json
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from langchain_core.globals import set_llm_cache
+from langchain_community.cache import SQLiteCache
+
 
 class VoiceCache:
     """Simple file-based cache for designed voices."""
@@ -60,3 +63,11 @@ class VoiceCache:
         }
         self._save_cache()
         print(f"💾 Cached voice: {cache_key} -> {voice_id}")
+
+
+def setup_llm_cache(db_path: str = ".langchain.db"):
+    """
+    Enable SQLite caching for all LLM calls.
+    This is useful for testing and development to avoid repeated API calls.
+    """
+    set_llm_cache(SQLiteCache(database_path=db_path))
