@@ -23,9 +23,15 @@ def audience_and_style_profiler_node(
         llm: Language model for profile generation.
 
     Returns:
-        Dict with audience_profile and style_profile.
+        Dict with audience_profile, style_profile, and a new session_id.
     """
+    import uuid
+    import os
+
     summary = state.get("summary", "")
+
+    # Generate session_id if not present, or use env var for testing
+    session_id = state.get("session_id") or os.getenv("TEST_SESSION_ID") or str(uuid.uuid4())
 
     profile = structured_llm_call(
         llm,
@@ -38,6 +44,7 @@ def audience_and_style_profiler_node(
     )
 
     return {
+        "session_id": session_id,
         "audience_profile": profile.model_dump(),
         "style_profile": {
             "production_style": profile.production_style.model_dump(),

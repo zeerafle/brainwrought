@@ -1,6 +1,7 @@
 """Node functions for video production pipeline."""
 
 import base64
+import json
 import os
 from pathlib import Path
 from typing import Any, Dict
@@ -29,7 +30,13 @@ def generate_video_assets_node(
     """
     from langchain_core.messages import HumanMessage, SystemMessage
 
-    scenes = state.get("asset_plan", {}).get("scenes", [])
+    asset_plan = state.get("asset_plan", {})
+    if hasattr(asset_plan, "model_dump"):
+        asset_plan = asset_plan.model_dump()
+    elif hasattr(asset_plan, "dict"):
+        asset_plan = asset_plan.dict()
+
+    scenes = asset_plan.get("scenes", [])
     video_assets = []
     messages_batch = []
 
@@ -57,16 +64,44 @@ def generate_video_assets_node(
         for resp in responses
     ]
 
+    session_id = state.get("session_id", "default")
     generate_func = modal.Function.from_name("brainwrought-ltx", "LTXVideo.generate")
-    video_filenames = list(generate_func.starmap([(p,) for p in video_assets_prompt]))
+    video_filenames = list(generate_func.starmap([(p, session_id) for p in video_assets_prompt]))
 
-    return {"video_filenames": video_filenames}
+    # Update asset_plan with generated filenames
+    # We need to map these back to the scenes.
+    # Since we flattened the list for batch processing, we need to reconstruct.
+
+    current_idx = 0
+    updated_asset_plan = state.get("asset_plan", [])
+    # Note: state["asset_plan"] is a list of SceneAssets.
+    # But wait, the input to this node was state["asset_plan"] which is a list?
+    # The docstring says "state: Pipeline state with asset_plan containing scenes and video_assets."
+    # Let's assume asset_plan is a list of dicts.
+
+    # Actually, we should probably update the asset_plan in the state to include the generated filenames
+    # so the renderer can find them.
+    # The renderer expects 'video_asset' in asset_plan to be the filename.
+
+    # Let's iterate again and assign filenames
+    for scene in scenes:
+        new_assets = []
+        for _ in scene["video_assets"]:
+            if current_idx < len(video_filenames):
+                # The filename returned by LTX is relative to volume root (e.g. "123_prompt.mp4")
+                # Remotion expects "vol/123_prompt.mp4"
+                filename = video_filenames[current_idx]
+                new_assets.append(f"vol/{filename}")
+                current_idx += 1
+        scene["video_assets"] = new_assets
+
+    return {"video_filenames": video_filenames, "asset_plan": {"scenes": scenes}}
 
 
 def voice_and_timing_node(
     state: Dict[str, Any],
     llm: BaseChatModel,
-    elevenlabs_api_key: str = None,
+    elevenlabs_api_key: str | None = None,
     output_dir: str = "generated_audio",
     use_voice_design: bool = True,
     voice_design_preview_index: int = 0,
@@ -153,9 +188,9 @@ def voice_and_timing_node(
                     voice_id = "JBFqnCBsd6RMkjVDRZzb"
             else:
                 print("⚠️  Voice design failed, using fallback")
-                voice_id = "JBFqnCBsd6RMkjVDRZzb"
+                voice_id = "h2dQOVyUfIDqY2whPOMo"
     else:
-        voice_id = "JBFqnCBsd6RMkjVDRZzb"
+        voice_id = "h2dQOVyUfIDqY2whPOMo"
         voice_config = {"source": "preset"}
 
     print(f"🎙️  Using voice ID: {voice_id}")
@@ -194,6 +229,22 @@ def voice_and_timing_node(
         scene_number = scene_data["scene_number"]
         voiceover_text = scene_data["dialogue_vo"]
 
+        audio_filename = f"scene_{scene_number:03d}_{language}.mp3"
+        audio_filepath = output_path / audio_filename
+        json_filename = f"scene_{scene_number:03d}_{language}.json"
+        json_filepath = output_path / json_filename
+
+        # Check if audio and metadata already exist
+        if audio_filepath.exists() and json_filepath.exists():
+            print(f"♻️  Using cached audio for scene {scene_number}...")
+            try:
+                with open(json_filepath, "r") as f:
+                    cached_data = json.load(f)
+                voice_timing_results.append(cached_data)
+                continue
+            except Exception as e:
+                print(f"⚠️  Failed to load cached metadata: {e}, regenerating...")
+
         try:
             print(f"🎤 Generating audio for scene {scene_number}...")
             response = client.text_to_speech.convert_with_timestamps(
@@ -205,9 +256,6 @@ def voice_and_timing_node(
                 optimize_streaming_latency=1,
                 language_code=language if language != "en" else None,
             )
-
-            audio_filename = f"scene_{scene_number:03d}_{language}.mp3"
-            audio_filepath = output_path / audio_filename
 
             if hasattr(response, "audio_base_64"):
                 audio_bytes = base64.b64decode(response.audio_base_64)
@@ -303,19 +351,23 @@ def voice_and_timing_node(
 
             request_id = getattr(response, "request_id", "unknown")
 
-            voice_timing_results.append(
-                {
-                    "scene_id": scene_number,
-                    "scene_name": f"Scene {scene_number}",
-                    "text": voiceover_text,
-                    "audio_path": str(audio_filepath),
-                    "duration_seconds": actual_duration,
-                    "character_timestamps": timestamps,
-                    "request_id": request_id,
-                    "voice_config": voice_config,
-                    "language": language,
-                }
-            )
+            result_data = {
+                "scene_id": scene_number,
+                "scene_name": f"Scene {scene_number}",
+                "text": voiceover_text,
+                "audio_path": str(audio_filepath),
+                "duration_seconds": actual_duration,
+                "character_timestamps": timestamps,
+                "request_id": request_id,
+                "voice_config": voice_config,
+                "language": language,
+            }
+
+            voice_timing_results.append(result_data)
+
+            # Cache the metadata
+            with open(json_filepath, "w") as f:
+                json.dump(result_data, f, indent=2)
 
             print(f"✅ Scene {scene_number}: {actual_duration:.2f}s")
 
@@ -349,28 +401,91 @@ def video_editor_renderer_node(
     llm: BaseChatModel,
 ) -> Dict[str, Any]:
     """
-    Create video timeline from scenes, assets, and voice timing.
+    Render video using Remotion on Modal.
 
     Args:
         state: Pipeline state with scenes, asset_plan, and voice_timing.
-        llm: Language model for timeline generation.
+        llm: Language model (unused for rendering but kept for signature).
 
     Returns:
-        Dict with video_timeline.
+        Dict with video_timeline containing the path to the rendered video.
     """
     scenes = state.get("scenes", [])
     asset_plan = state.get("asset_plan", [])
     voice_timing = state.get("voice_timing", [])
 
-    timeline_text = simple_llm_call(
-        llm,
-        "You act as a non-technical video editor describing a clear edit timeline.",
-        "Create a JSON-like timeline that maps scenes, assets, and voice timing for a "
-        "simple linear edit.\n\n"
-        f"Scenes:\n{scenes}\n\nAssets:\n{asset_plan}\n\nVoice/timing:\n{voice_timing}",
-    )
+    # Upload audio files to Modal Volume
+    print("📤 Uploading audio assets to Modal...")
+    session_id = state.get("session_id", "default_session")
 
-    return {"video_timeline": {"raw": timeline_text}}
+    try:
+        assets_vol = modal.Volume.from_name("ltx-outputs", create_if_missing=True)
+        with assets_vol.batch_upload(force=True) as batch:
+            for vt in voice_timing:
+                local_audio_path = vt.get("audio_path")
+                if local_audio_path and os.path.exists(local_audio_path):
+                    filename = os.path.basename(local_audio_path)
+                    # Upload to 'sessions/<id>/audio' subdirectory
+                    remote_path = f"sessions/{session_id}/audio/{filename}"
+                    batch.put_file(local_audio_path, remote_path)
+
+                    # Update path in props to be relative for Remotion (vol/sessions/<id>/audio/filename)
+                    # Since volume is mounted at public/vol
+                    vt["audio_path"] = f"vol/sessions/{session_id}/audio/{filename}"
+                else:
+                    print(f"⚠️ Audio file not found: {local_audio_path}")
+    except Exception as e:
+        print(f"⚠️ Failed to upload audio assets: {e}")
+
+    # Construct props for Remotion
+    # Ensure asset_plan is serializable (convert Pydantic models to dicts)
+    if hasattr(asset_plan, "model_dump"):
+        asset_plan = asset_plan.model_dump()
+    elif hasattr(asset_plan, "dict"):
+        asset_plan = asset_plan.dict()
+
+    props = {
+        "scenes": scenes,
+        "asset_plan": asset_plan,
+        "voice_timing": voice_timing,
+        "total_duration": 60,  # Default, SceneManager handles actual length
+    }
+
+    # Save props locally for Remotion Studio development
+    local_props_path = Path("remotion_src/input_props.json")
+    try:
+        with open(local_props_path, "w") as f:
+            json.dump(props, f, indent=2)
+        print(f"💾 Saved local props to {local_props_path}")
+    except Exception as e:
+        print(f"⚠️ Failed to save local props: {e}")
+
+    print("🚀 Triggering Remotion render on Modal...")
+
+    try:
+        RemotionRenderer = modal.Cls.from_name(
+            "brainwrought-renderer", "RemotionRenderer"
+        )
+        renderer = RemotionRenderer()
+        video_bytes = renderer.render_video.remote(props)
+
+        output_dir = Path("rendered_videos")
+        output_dir.mkdir(exist_ok=True)
+        output_path = output_dir / "final_video.mp4"
+
+        with open(output_path, "wb") as f:
+            f.write(video_bytes)
+
+        print(f"✅ Video rendered to: {output_path}")
+
+        return {
+            "video_timeline": {"video_path": str(output_path), "status": "rendered"}
+        }
+
+    except Exception as e:
+        print(f"❌ Rendering failed: {e}")
+        # Fallback to text description if render fails
+        return {"video_timeline": {"error": str(e), "status": "failed"}}
 
 
 def qc_and_safety_node(state: Dict[str, Any], llm: BaseChatModel) -> Dict[str, Any]:

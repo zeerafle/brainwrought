@@ -143,6 +143,7 @@ class VoiceDesigner:
                 "A clear, friendly, and engaging voice perfect for educational content."
             )
 
+        # TODO: shorten voice description
         core_persona = self.audience_profile.get("core_persona", {})
         voice_tone = self.audience_profile.get("voice_tone_description", "")
         production_style = self.audience_profile.get("production_style", {})

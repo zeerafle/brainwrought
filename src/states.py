@@ -109,6 +109,7 @@ class PipelineState(TypedDict, total=False):
     """
 
     # Ingestion fields
+    session_id: str
     raw_text: str
     pdf_path: str
     pages: List[str]

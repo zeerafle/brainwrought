@@ -1,7 +1,16 @@
 {
-  "servers": {
-    "docs-langchain": {
-      "url": "https://docs.langchain.com/mcp"
-    }
-  }
+	"servers": {
+		"docs-langchain": {
+			"url": "https://docs.langchain.com/mcp",
+			"type": "http"
+		},
+		"remotion-documentation": {
+			"command": "npx",
+			"args": [
+				"@remotion/mcp@latest"
+			],
+			"type": "stdio"
+		}
+	},
+	"inputs": []
 }

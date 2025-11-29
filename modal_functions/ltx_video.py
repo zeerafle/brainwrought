@@ -57,6 +57,7 @@ class LTXVideo:
     def generate(
         self,
         prompt: str,
+        session_id: str = "default",
         negative_prompt: str = "worst quality, blurry, jittery, distorted",
         num_inference_steps: int = 100,
         guidance_scale: float = 4.5,
@@ -80,9 +81,21 @@ class LTXVideo:
         ).frames[0]
 
         # Save to Modal Volume
-        video_filename = f"{int(time.time())}_{prompt[:50].replace(' ', '_')}.mp4"
-        video_path = OUTPUTS_PATH / video_filename
+        filename = f"{int(time.time())}_{prompt[:50].replace(' ', '_')}.mp4"
+
+        if session_id != "default":
+            # Create session directory structure: sessions/<id>/video/
+            session_dir = OUTPUTS_PATH / "sessions" / session_id / "video"
+            session_dir.mkdir(parents=True, exist_ok=True)
+            video_path = session_dir / filename
+            # Return relative path for Remotion (vol/sessions/<id>/video/<filename>)
+            # Note: Remotion mounts the volume at public/vol, so we return path relative to volume root
+            relative_path = f"sessions/{session_id}/video/{filename}"
+        else:
+            video_path = OUTPUTS_PATH / filename
+            relative_path = filename
+
         export_to_video(frames, video_path)
         outputs_vol.commit()
 
-        return video_filename
+        return relative_path

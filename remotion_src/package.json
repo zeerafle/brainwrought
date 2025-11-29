@@ -1,0 +1,28 @@
+{
+  "name": "brainwrought-remotion",
+  "version": "1.0.0",
+  "description": "Remotion project for Brainwrought",
+  "scripts": {
+    "start": "remotion preview",
+    "build": "remotion render",
+    "upgrade": "remotion upgrade",
+    "test": "eslint src --ext ts,tsx && tsc"
+  },
+  "dependencies": {
+    "remotion": "4.0.218",
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0",
+    "@remotion/cli": "4.0.218",
+    "@remotion/media-utils": "4.0.218",
+    "@remotion/shapes": "4.0.218",
+    "@remotion/zod-types": "4.0.218",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/react": "^18.0.0",
+    "@types/web": "^0.0.133",
+    "typescript": "^5.3.3",
+    "eslint": "^8.56.0",
+    "prettier": "^3.2.4"
+  }
+}

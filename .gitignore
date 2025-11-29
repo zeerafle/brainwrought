@@ -23,3 +23,6 @@ checkpoints.db
 test_audio_output
 src/utils/voice_persona_mapper.py
 assets/*
+generated_audio/*
+.langchain.db
+remotion_src/public/*
