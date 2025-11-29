@@ -13,6 +13,13 @@ export const VoiceTimingSchema = z.object({
       end: z.number(),
     })
   ),
+  word_timestamps: z.array(
+    z.object({
+      word: z.string(),
+      start: z.number(),
+      end: z.number(),
+    })
+  ).optional(),
 });
 
 export const SceneAssetSchema = z.object({

@@ -12,7 +12,12 @@ export const MediaLayer: React.FC<{
 
     return (
       <AbsoluteFill>
-         <Video src={fallbackSrc} style={{ width: '100%', height: '100%', objectFit: 'cover' }} loop />
+         <Video
+            src={fallbackSrc}
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            loop
+            onError={(e) => console.error(`❌ Failed to load fallback media: ${fallbackSrc}`, e)}
+         />
       </AbsoluteFill>
     );
   }

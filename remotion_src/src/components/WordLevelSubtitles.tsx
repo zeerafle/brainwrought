@@ -14,11 +14,17 @@ export const WordLevelSubtitles: React.FC<{
   const relativeFrame = frame - startFrame;
   const currentTime = relativeFrame / fps;
 
-  const currentWord = voiceTiming.character_timestamps.find(
-    (ts) => currentTime >= ts.start && currentTime <= ts.end
-  );
+  const currentItem = voiceTiming.word_timestamps
+    ? voiceTiming.word_timestamps.find(
+        (ts) => currentTime >= ts.start && currentTime <= ts.end
+      )
+    : voiceTiming.character_timestamps.find(
+        (ts) => currentTime >= ts.start && currentTime <= ts.end
+      );
 
-  if (!currentWord) return null;
+  if (!currentItem) return null;
+
+  const text = 'word' in currentItem ? currentItem.word : currentItem.character;
 
   return (
     <AbsoluteFill
@@ -39,7 +45,7 @@ export const WordLevelSubtitles: React.FC<{
           transform: 'scale(1.1)', // Slight pop
         }}
       >
-        {currentWord.character}
+        {text}
       </div>
     </AbsoluteFill>
   );

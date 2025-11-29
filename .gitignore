@@ -26,3 +26,4 @@ assets/*
 generated_audio/*
 .langchain.db
 remotion_src/public/*
+remotion_src/out/*

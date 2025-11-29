@@ -25,15 +25,22 @@ RUN apt-get update && apt-get install -y \
 # 2. Set working directory
 WORKDIR /app
 
+# 2.5 Fix permissions for node user
+# Ensure the node user (uid 1000) owns the directory
+RUN chown -R node:node /app
+
+# Switch to node user
+USER node
+
 # 3. Copy package files first to leverage Docker cache
-COPY package.json pnpm-lock.yaml* ./
+COPY --chown=node:node package.json pnpm-lock.yaml* ./
 
 # 4. Install dependencies
 # We use --legacy-peer-deps to handle the zod conflict you saw earlier
 RUN npm install --legacy-peer-deps
 
 # 5. Copy the rest of the source code
-COPY . .
+COPY --chown=node:node . .
 
 # 6. Expose port for Remotion Studio
 EXPOSE 3000

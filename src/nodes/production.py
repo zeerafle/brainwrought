@@ -240,8 +240,21 @@ def voice_and_timing_node(
             try:
                 with open(json_filepath, "r") as f:
                     cached_data = json.load(f)
-                voice_timing_results.append(cached_data)
-                continue
+
+                # Check if text matches and we have word_timestamps
+                cached_text = cached_data.get("text", "")
+                # Simple normalization for comparison (strip whitespace)
+                if cached_text.strip() == voiceover_text.strip():
+                    if "word_timestamps" in cached_data:
+                        voice_timing_results.append(cached_data)
+                        continue
+                    else:
+                        print(f"⚠️  Cached data missing word_timestamps, regenerating...")
+                else:
+                    print(f"⚠️  Cached text differs from current text, regenerating...")
+                    print(f"    Cached: {cached_text[:50]}...")
+                    print(f"    Current: {voiceover_text[:50]}...")
+
             except Exception as e:
                 print(f"⚠️  Failed to load cached metadata: {e}, regenerating...")
 
@@ -345,8 +358,51 @@ def voice_and_timing_node(
                     if timestamps:
                         actual_duration = timestamps[-1]["end"]
 
+            # Group characters into words
+            word_timestamps = []
+            current_word = ""
+            word_start = 0.0
+
+            for ts in timestamps:
+                char = ts["character"]
+                if not current_word and char.strip():
+                    word_start = ts["start"]
+
+                if char == " ":
+                    if current_word:
+                        # Use the END of the space to keep the word visible during the pause
+                        word_timestamps.append({
+                            "word": current_word,
+                            "start": word_start,
+                            "end": ts["end"]
+                        })
+                        current_word = ""
+                else:
+                    current_word += char
+                    # Update end time for the current word
+                    word_end = ts["end"]
+
+            # Add last word if exists
+            if current_word:
+                word_timestamps.append({
+                    "word": current_word,
+                    "start": word_start,
+                    "end": word_end
+                })
+
+            # Post-processing: Bridge small gaps between words to prevent flickering
+            # This ensures the word stays on screen until the next one starts (if gap is small)
+            for i in range(len(word_timestamps) - 1):
+                current_item = word_timestamps[i]
+                next_item = word_timestamps[i+1]
+
+                gap = next_item["start"] - current_item["end"]
+                # If gap is less than 0.5s, extend current word to meet next word
+                if 0 < gap < 0.5:
+                    current_item["end"] = next_item["start"]
+
             print(
-                f"   ⏱️  Duration: {actual_duration:.2f}s ({len(timestamps)} timestamps)"
+                f"   ⏱️  Duration: {actual_duration:.2f}s ({len(timestamps)} chars, {len(word_timestamps)} words)"
             )
 
             request_id = getattr(response, "request_id", "unknown")
@@ -358,6 +414,7 @@ def voice_and_timing_node(
                 "audio_path": str(audio_filepath),
                 "duration_seconds": actual_duration,
                 "character_timestamps": timestamps,
+                "word_timestamps": word_timestamps,
                 "request_id": request_id,
                 "voice_config": voice_config,
                 "language": language,
@@ -414,9 +471,14 @@ def video_editor_renderer_node(
     asset_plan = state.get("asset_plan", [])
     voice_timing = state.get("voice_timing", [])
 
-    # Upload audio files to Modal Volume
-    print("📤 Uploading audio assets to Modal...")
+    # Upload audio files to Modal Volume AND copy to local dev volume
+    print("📤 Uploading audio assets to Modal and syncing locally...")
     session_id = state.get("session_id", "default_session")
+
+    # Ensure local dev volume structure exists
+    local_vol_path = Path("remotion_src/public/vol")
+    local_session_audio_path = local_vol_path / "sessions" / session_id / "audio"
+    local_session_audio_path.mkdir(parents=True, exist_ok=True)
 
     try:
         assets_vol = modal.Volume.from_name("ltx-outputs", create_if_missing=True)
@@ -425,9 +487,20 @@ def video_editor_renderer_node(
                 local_audio_path = vt.get("audio_path")
                 if local_audio_path and os.path.exists(local_audio_path):
                     filename = os.path.basename(local_audio_path)
-                    # Upload to 'sessions/<id>/audio' subdirectory
+
+                    # 1. Upload to Modal (remote)
                     remote_path = f"sessions/{session_id}/audio/{filename}"
                     batch.put_file(local_audio_path, remote_path)
+
+                    # 2. Copy to local dev volume (for Podman/local preview)
+                    import shutil
+                    dest_path = local_session_audio_path / filename
+                    shutil.copy2(local_audio_path, dest_path)
+
+                    # Also copy the JSON metadata for debugging/reference
+                    json_src = local_audio_path.replace(".mp3", ".json")
+                    if os.path.exists(json_src):
+                        shutil.copy2(json_src, local_session_audio_path / os.path.basename(json_src))
 
                     # Update path in props to be relative for Remotion (vol/sessions/<id>/audio/filename)
                     # Since volume is mounted at public/vol
@@ -435,7 +508,7 @@ def video_editor_renderer_node(
                 else:
                     print(f"⚠️ Audio file not found: {local_audio_path}")
     except Exception as e:
-        print(f"⚠️ Failed to upload audio assets: {e}")
+        print(f"⚠️ Failed to upload/sync audio assets: {e}")
 
     # Construct props for Remotion
     # Ensure asset_plan is serializable (convert Pydantic models to dicts)
