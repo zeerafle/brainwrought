@@ -8,7 +8,7 @@ export const RemotionRoot: React.FC = () => {
       <Composition
         id="BrainrotComposition"
         component={BrainrotComposition}
-        durationInFrames={30 * 60} // Default 60s, will be overridden by props
+        durationInFrames={30 * 60} // Fallback
         fps={30}
         width={1080}
         height={1920}
@@ -18,6 +18,12 @@ export const RemotionRoot: React.FC = () => {
           asset_plan: [],
           voice_timing: [],
           total_duration: 60,
+        }}
+        calculateMetadata={async ({ props }) => {
+            const durationInSeconds = props.total_duration || 60;
+            return {
+                durationInFrames: Math.ceil(durationInSeconds * 30),
+            };
         }}
       />
     </>

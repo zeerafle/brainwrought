@@ -1,5 +1,5 @@
-import React from 'react';
-import { Sequence, Audio, staticFile } from 'remotion';
+import React, { useMemo } from 'react';
+import { Sequence, Audio, staticFile, AbsoluteFill, Video, random } from 'remotion';
 import { BrainrotProps } from '../schema';
 import { MediaLayer } from './MediaLayer';
 import { WordLevelSubtitles } from './WordLevelSubtitles';
@@ -10,8 +10,31 @@ export const SceneManager: React.FC<BrainrotProps> = ({ scenes, asset_plan, voic
   // Ensure asset_plan is an array before trying to find
   const safeAssetPlan = Array.isArray(asset_plan) ? asset_plan : (asset_plan as any)?.scenes || [];
 
+  // Calculate random start time for the background gameplay video
+  // Use the first scene's text as a seed to keep it consistent for this video
+  const seed = scenes[0]?.dialogue_vo || 'default-seed';
+  const gameplayStart = useMemo(() => {
+      // Random start between 0 and 20 minutes (1200 seconds)
+      // Assuming the video is 30 mins long, this leaves plenty of room
+      return Math.floor(random(seed) * 1200);
+  }, [seed]);
+
+  const backgroundSrc = staticFile("vol/stock/gameplay/minecraft.mp4");
+
   return (
     <>
+      {/* Continuous Background Layer */}
+      <AbsoluteFill style={{ zIndex: 0 }}>
+        <Video
+            src={backgroundSrc}
+            startFrom={gameplayStart * 30} // Convert seconds to frames
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            loop
+            muted
+            onError={(e) => console.error(`❌ Failed to load background media: ${backgroundSrc}`, e)}
+        />
+      </AbsoluteFill>
+
       {scenes.map((scene, index) => {
         const timing = voice_timing.find((vt) => vt.scene_id === scene.scene_number);
         const assets = safeAssetPlan.find((ap: any) => ap.scene_name.includes(scene.scene_number.toString()) || ap.scene_name === scene.scene_number.toString()); // Loose matching for now
@@ -24,40 +47,30 @@ export const SceneManager: React.FC<BrainrotProps> = ({ scenes, asset_plan, voic
         currentFrame += durationInFrames;
 
         const videoAsset = assets?.video_asset?.[0]; // Take first video asset
-        // If video asset is a filename, we assume it's in the assets folder.
-        // We might need to adjust this path logic based on how Modal mounts volumes.
-        // If it's a generated asset, it might already have the full path from the production node.
-        // If it's a stock asset, we might need to prepend 'vol/stock/'.
-        // For now, let's assume if it doesn't start with 'vol/', it's a stock asset or needs prefixing.
 
         let assetPath = null;
         if (videoAsset) {
             if (videoAsset.startsWith('vol/') || videoAsset.startsWith('http')) {
                 assetPath = videoAsset;
             } else {
-                // If the asset name looks like a description (contains spaces), it's likely a placeholder
-                // that hasn't been replaced by a real file path yet.
                 if (videoAsset.includes(' ')) {
-                    console.warn(`⚠️ Asset path looks like a description, skipping: "${videoAsset}"`);
+                    // console.warn(`⚠️ Asset path looks like a description, skipping: "${videoAsset}"`);
                     assetPath = null;
                 } else {
-                    // Assume it's a generated LTX video in the volume root or stock
                     assetPath = `vol/${videoAsset}`;
                 }
             }
         }
 
         const audioPath = timing?.audio_path;
-        // Ensure audioPath is handled correctly with staticFile
-        // If it already starts with vol/, staticFile handles it relative to public/
-        // If it's an absolute path or URL, we might need adjustment.
-        // Our pipeline sends "vol/sessions/..." which is correct for staticFile("vol/sessions/...")
-
         const finalAudioSrc = audioPath ? (audioPath.startsWith("http") ? audioPath : staticFile(audioPath)) : null;
 
         return (
-          <Sequence key={index} from={startFrame} durationInFrames={durationInFrames}>
-            <MediaLayer assetPath={assetPath} type="video" />
+          <Sequence key={index} from={startFrame} durationInFrames={durationInFrames} style={{ zIndex: 1 }}>
+            {/* Only render MediaLayer if we have a specific asset for this scene */}
+            {assetPath && (
+                <MediaLayer assetPath={assetPath} type="video" />
+            )}
 
             {finalAudioSrc && (
                <Audio

@@ -41,7 +41,11 @@ image = (
         "mkdir -p /app/remotion_src",
         "cp -r /tmp/node_modules /app/"
     )
-    .add_local_dir(remotion_src_path, remote_path=remote_remotion_path)
+    .add_local_dir(
+        remotion_src_path,
+        remote_path=remote_remotion_path,
+        ignore=["node_modules", ".remotion", "out", ".git"],
+    )
 )
 
 # Volume for assets (shared with LTX generator)

@@ -6,20 +6,9 @@ export const MediaLayer: React.FC<{
   type: 'video' | 'image';
 }> = ({ assetPath, type }) => {
   if (!assetPath) {
-    // Fallback to generic background if no asset provided
-    // Use a stock gameplay video from the volume if available
-    const fallbackSrc = staticFile("vol/stock/gameplay/minecraft.mp4");
-
-    return (
-      <AbsoluteFill>
-         <Video
-            src={fallbackSrc}
-            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-            loop
-            onError={(e) => console.error(`❌ Failed to load fallback media: ${fallbackSrc}`, e)}
-         />
-      </AbsoluteFill>
-    );
+    // If no asset path is provided, render nothing (transparent)
+    // The background layer in SceneManager will show through
+    return null;
   }
 
   // Assuming assets are served from a static folder or URL

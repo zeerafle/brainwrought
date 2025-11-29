@@ -517,11 +517,16 @@ def video_editor_renderer_node(
     elif hasattr(asset_plan, "dict"):
         asset_plan = asset_plan.dict()
 
+    # Calculate total duration from voice timings
+    calculated_duration = sum(vt.get("duration_seconds", 0) for vt in voice_timing)
+    # Add a small buffer (e.g. 1 second)
+    total_duration = calculated_duration + 1.0
+
     props = {
         "scenes": scenes,
         "asset_plan": asset_plan,
         "voice_timing": voice_timing,
-        "total_duration": 60,  # Default, SceneManager handles actual length
+        "total_duration": total_duration,
     }
 
     # Save props locally for Remotion Studio development
