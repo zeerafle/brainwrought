@@ -66,7 +66,9 @@ def generate_video_assets_node(
 
     session_id = state.get("session_id", "default")
     generate_func = modal.Function.from_name("brainwrought-ltx", "LTXVideo.generate")
-    video_filenames = list(generate_func.starmap([(p, session_id) for p in video_assets_prompt]))
+    video_filenames = list(
+        generate_func.starmap([(p, session_id) for p in video_assets_prompt])
+    )
 
     # Update asset_plan with generated filenames
     # We need to map these back to the scenes.
@@ -249,9 +251,9 @@ def voice_and_timing_node(
                         voice_timing_results.append(cached_data)
                         continue
                     else:
-                        print(f"⚠️  Cached data missing word_timestamps, regenerating...")
+                        print("⚠️  Cached data missing word_timestamps, regenerating...")
                 else:
-                    print(f"⚠️  Cached text differs from current text, regenerating...")
+                    print("⚠️  Cached text differs from current text, regenerating...")
                     print(f"    Cached: {cached_text[:50]}...")
                     print(f"    Current: {voiceover_text[:50]}...")
 
@@ -371,11 +373,13 @@ def voice_and_timing_node(
                 if char == " ":
                     if current_word:
                         # Use the END of the space to keep the word visible during the pause
-                        word_timestamps.append({
-                            "word": current_word,
-                            "start": word_start,
-                            "end": ts["end"]
-                        })
+                        word_timestamps.append(
+                            {
+                                "word": current_word,
+                                "start": word_start,
+                                "end": ts["end"],
+                            }
+                        )
                         current_word = ""
                 else:
                     current_word += char
@@ -384,17 +388,15 @@ def voice_and_timing_node(
 
             # Add last word if exists
             if current_word:
-                word_timestamps.append({
-                    "word": current_word,
-                    "start": word_start,
-                    "end": word_end
-                })
+                word_timestamps.append(
+                    {"word": current_word, "start": word_start, "end": word_end}
+                )
 
             # Post-processing: Bridge small gaps between words to prevent flickering
             # This ensures the word stays on screen until the next one starts (if gap is small)
             for i in range(len(word_timestamps) - 1):
                 current_item = word_timestamps[i]
-                next_item = word_timestamps[i+1]
+                next_item = word_timestamps[i + 1]
 
                 gap = next_item["start"] - current_item["end"]
                 # If gap is less than 0.5s, extend current word to meet next word
@@ -416,7 +418,6 @@ def voice_and_timing_node(
                 "character_timestamps": timestamps,
                 "word_timestamps": word_timestamps,
                 "request_id": request_id,
-                "voice_config": voice_config,
                 "language": language,
             }
 
@@ -445,7 +446,6 @@ def voice_and_timing_node(
                     "duration_seconds": 0.0,
                     "error": str(e),
                     "error_details": error_details,
-                    "voice_config": voice_config,
                     "language": language,
                 }
             )
@@ -494,13 +494,17 @@ def video_editor_renderer_node(
 
                     # 2. Copy to local dev volume (for Podman/local preview)
                     import shutil
+
                     dest_path = local_session_audio_path / filename
                     shutil.copy2(local_audio_path, dest_path)
 
                     # Also copy the JSON metadata for debugging/reference
                     json_src = local_audio_path.replace(".mp3", ".json")
                     if os.path.exists(json_src):
-                        shutil.copy2(json_src, local_session_audio_path / os.path.basename(json_src))
+                        shutil.copy2(
+                            json_src,
+                            local_session_audio_path / os.path.basename(json_src),
+                        )
 
                     # Update path in props to be relative for Remotion (vol/sessions/<id>/audio/filename)
                     # Since volume is mounted at public/vol

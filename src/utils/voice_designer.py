@@ -57,7 +57,6 @@ class VoiceDesigner:
     """
 
     # Language-specific voice characteristics
-    # Language-specific voice characteristics
     LANGUAGE_CONFIGS = {
         "en": {
             "model": "eleven_multilingual_ttv_v2",
@@ -143,13 +142,12 @@ class VoiceDesigner:
                 "A clear, friendly, and engaging voice perfect for educational content."
             )
 
-        # TODO: shorten voice description
         core_persona = self.audience_profile.get("core_persona", {})
         voice_tone = self.audience_profile.get("voice_tone_description", "")
         production_style = self.audience_profile.get("production_style", {})
 
         # Extract persona characteristics
-        age_range = core_persona.get("age_range", "").lower()
+        age_range = core_persona.get("age_range", [])
         audio_style = production_style.get("audio_style", "").lower()
         pacing = production_style.get("pacing", "").lower()
 
@@ -157,12 +155,23 @@ class VoiceDesigner:
         components = []
 
         # Age/demographic
-        if any(term in age_range for term in ["13-17", "teen", "young"]):
-            components.append("A youthful, energetic voice")
-        elif any(term in age_range for term in ["18-24", "gen-z"]):
-            components.append("A young adult voice, relatable and modern")
-        elif any(term in age_range for term in ["25-40", "millennial"]):
-            components.append("A mature, professional yet approachable voice")
+        def _overlaps(lo1: int, hi1: int, lo2: int, hi2: int) -> bool:
+            return not (hi1 < lo2 or lo1 > hi2)
+
+        if (
+            isinstance(age_range, (list, tuple))
+            and len(age_range) == 2
+            and all(isinstance(x, int) for x in age_range)
+        ):
+            lo, hi = sorted(age_range)
+            if _overlaps(lo, hi, 13, 17):
+                components.append("A youthful, energetic voice")
+            elif _overlaps(lo, hi, 18, 24):
+                components.append("A young adult voice, relatable and modern")
+            elif _overlaps(lo, hi, 25, 40):
+                components.append("A mature, professional yet approachable voice")
+            else:
+                components.append("A versatile, engaging voice")
         else:
             components.append("A versatile, engaging voice")
 

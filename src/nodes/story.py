@@ -3,13 +3,13 @@
 from typing import Any, Dict
 
 from langchain_core.language_models import BaseChatModel
-from utils.llm_utils import structured_llm_call
 
 from models.story_models import (
     AudienceAndStyleProfile,
     SceneBySceneScript,
     Scenes,
 )
+from utils.llm_utils import structured_llm_call
 
 
 def audience_and_style_profiler_node(
@@ -25,20 +25,22 @@ def audience_and_style_profiler_node(
     Returns:
         Dict with audience_profile, style_profile, and a new session_id.
     """
-    import uuid
     import os
+    import uuid
 
     summary = state.get("summary", "")
 
     # Generate session_id if not present, or use env var for testing
-    session_id = state.get("session_id") or os.getenv("TEST_SESSION_ID") or str(uuid.uuid4())
+    session_id = (
+        state.get("session_id") or os.getenv("TEST_SESSION_ID") or str(uuid.uuid4())
+    )
 
     profile = structured_llm_call(
         llm,
         "You are an expert at designing comprehensive audience profiles and delivery style guidelines for educational short-form videos (TikTok/YouTube Shorts). "
         "Create detailed, actionable profiles that combine audience demographics, content preferences, production style, and voice tone guidance.",
         f"Given this lecture summary, create a complete audience and style profile for a TikTok/YouTube Shorts educational video series. "
-        f"Include: core persona, content preferences, key messages, production style (hooks, visuals, pacing), CTAs, hashtags, and detailed voice tone description for TTS.\n\n"
+        f"Include: core persona, content preferences, key messages, production style (hooks, visuals, pacing), CTAs, hashtags, and short voice tone description for TTS.\n\n"
         f"Summary:\n{summary}",
         AudienceAndStyleProfile,
     )
@@ -111,7 +113,6 @@ def asset_planner_node(state: Dict[str, Any], llm: BaseChatModel) -> Dict[str, A
     Returns:
         Dict with asset_plan.
     """
-    import os
     from pathlib import Path
 
     scenes = state.get("scenes", [])
@@ -127,7 +128,7 @@ def asset_planner_node(state: Dict[str, Any], llm: BaseChatModel) -> Dict[str, A
         "You plan simple reusable assets (clips, BGM, SFX) for social videos.",
         f"Given this scene-by-scene script, list for each scene the suggested video assets, "
         f"BGM mood, and SFX.\n\n"
-        f"Available SFX files (prefer these if suitable):\n{', '.join(available_sfx)}\n\n"
+        f"Available SFX files (prefer this as much as possible):\n{', '.join(available_sfx)}\n\n"
         f"For SFX, provide a description (or filename if available) and a timestamp_offset (seconds from start of scene).\n"
         f"If a suitable SFX is not in the list, describe the sound you want (e.g. 'futuristic whoosh', 'digital glitch').\n\n"
         f"Scenes:\n{scenes}",

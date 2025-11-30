@@ -61,7 +61,8 @@ if __name__ == "__main__":
 
     async def main():
         # Example with PDF path
-        sample_pdf_path = "/home/zeerafle/Projects/brainwrought/CLIPS basics.pdf"
+        # sample_pdf_path = "/home/zeerafle/Projects/brainwrought/CLIPS basics.pdf"
+        sample_pdf_path = "/home/zeerafle/WorkFolder/Documents/College/Sınırsel Hesap ve Sınırsel Ağlar/yapay-sinir-aglariercan-oztemel-ch1-2.pdf"
         result = await run_pipeline(sample_pdf_path, thread_id="test_run_1")
         print(result.keys())
 

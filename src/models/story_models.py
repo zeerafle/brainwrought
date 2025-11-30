@@ -9,7 +9,9 @@ class CorePersona(BaseModel):
     """Target audience persona details."""
 
     name: str = Field(description="Example persona name")
-    age_range: str = Field(description="Age range (e.g., '18-35')")
+    age_range: list[int] = Field(
+        description="Age range, in a form of list of 2 integer referring range. Ex: [18, 35]"
+    )
     background: str = Field(description="Educational and professional background")
     skill_level: str = Field(description="Current skill level and knowledge")
     goals: str = Field(description="What they want to achieve")
@@ -32,8 +34,12 @@ class VideoProductionStyle(BaseModel):
     hook_examples: List[str] = Field(description="Example hooks for first 2-3 seconds")
     visual_style: str = Field(description="Visual composition and layout guidelines")
     on_screen_text: str = Field(description="How to use captions and text overlays")
-    audio_style: str = Field(description="Music, voiceover, and SFX guidelines")
-    pacing: str = Field(description="Timing, speaking rate, and beat structure")
+    audio_style: str = Field(
+        description="Music, voiceover, and SFX guidelines. Ex: dynamic, soothing, authoritative"
+    )
+    pacing: str = Field(
+        description="Timing, speaking rate, and beat structure. Ex: fast, slow"
+    )
 
 
 class AudienceAndStyleProfile(BaseModel):
@@ -49,9 +55,7 @@ class AudienceAndStyleProfile(BaseModel):
     )
     calls_to_action: List[str] = Field(description="Primary and secondary CTAs")
     hashtags: List[str] = Field(description="Recommended hashtags for social media")
-    voice_tone_description: str = Field(
-        description="Detailed voice/narrator tone for TTS and delivery"
-    )
+    voice_tone_description: str = Field(description="A short voice tone description.")
 
 
 class Scene(BaseModel):
