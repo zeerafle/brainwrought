@@ -139,7 +139,7 @@ export const MemeLayer: React.FC<MemeLayerProps> = ({
   mode = 'auto',
   grid,
   sequence,
-  objectFit = 'cover',
+  objectFit = 'contain',
   animate = true,
   imageRadius = 0,
   strokeText = true,
@@ -164,12 +164,12 @@ export const MemeLayer: React.FC<MemeLayerProps> = ({
   }));
 
   const zoomScale = animate
-    ? interpolate(frame, [0, durationInFrames], [1.025, 1.075], {
+    ? interpolate(frame, [0, durationInFrames], [0.96, 0.98], {
         easing: Easing.ease,
         extrapolateLeft: 'clamp',
         extrapolateRight: 'clamp',
       })
-    : 1.0;
+    : 0.98;
 
   if (chosenMode === 'grid') {
     const defaults = defaultGridForCount(resolved.length);

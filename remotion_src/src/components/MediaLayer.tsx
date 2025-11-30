@@ -1,5 +1,5 @@
-import React from 'react';
-import { AbsoluteFill, Video, Img, staticFile } from 'remotion';
+import React, {useRef, useState} from 'react';
+import { AbsoluteFill, Video, Img, staticFile, useCurrentFrame, useVideoConfig } from 'remotion';
 
 export const MediaLayer: React.FC<{
   assetPath: string | null;
@@ -23,23 +23,60 @@ export const MediaLayer: React.FC<{
       console.error(`❌ Failed to load media: ${src}`, e);
   }
 
+  // Center content and make it slightly smaller than full frame
+  const containerStyle: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  };
+
+  const mediaStyle: React.CSSProperties = {
+    width: '96%',
+    height: '96%',
+    objectFit: 'contain',
+    transform: 'scale(0.98)',
+  };
+
   if (type === 'video') {
+    const frame = useCurrentFrame();
+    const { fps } = useVideoConfig();
+    const [durationSec, setDurationSec] = useState<number | null>(null);
+
+    // Capture the frame when this layer first mounts to compute relative time
+    const mountFrameRef = useRef<number | null>(null);
+    if (mountFrameRef.current === null) {
+      mountFrameRef.current = frame;
+    }
+    const relFrame = mountFrameRef.current !== null ? frame - mountFrameRef.current : 0;
+    const maxFrames = durationSec != null ? Math.floor(durationSec * fps) : null;
+
+    // If the video finished, hide the layer so it doesn't wait for scene end
+    if (maxFrames != null && relFrame > maxFrames) {
+      return null;
+    }
+
     return (
-      <AbsoluteFill>
+      <AbsoluteFill style={containerStyle}>
         <Video
             src={src}
-            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            style={mediaStyle}
             onError={onError}
+            onLoadedMetadata={(e: any) => {
+              const d = e?.currentTarget?.duration;
+              if (typeof d === 'number' && isFinite(d) && d > 0) {
+                setDurationSec(d);
+              }
+            }}
         />
       </AbsoluteFill>
     );
   }
 
   return (
-    <AbsoluteFill>
+    <AbsoluteFill style={containerStyle}>
       <Img
         src={src}
-        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+        style={mediaStyle}
         onError={onError}
       />
     </AbsoluteFill>
