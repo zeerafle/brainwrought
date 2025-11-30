@@ -8,7 +8,7 @@ graph TD;
 	__end__([<p>__end__</p>]):::last
 	__start__ --> ingestion_pipeline\3apdf_to_pages;
 	ingestion_pipeline\3aquiz_generator --> story_studio_pipeline\3aaudience_and_style_profiler;
-	story_studio_pipeline\3aasset_planner --> production_pipeline\3avoice_and_timing;
+	story_studio_pipeline\3aasset_planner --> production_pipeline\3a__start__;
 	production_pipeline\3adeliver_export --> __end__;
 	subgraph ingestion_pipeline
 	ingestion_pipeline\3apdf_to_pages(pdf_to_pages)
@@ -42,10 +42,15 @@ graph TD;
 	end
 	end
 	subgraph production_pipeline
+	production_pipeline\3a__start__(<p>__start__</p>)
 	production_pipeline\3avoice_and_timing(voice_and_timing)
+	production_pipeline\3agenerate_sfx(generate_sfx)
 	production_pipeline\3avideo_editor_renderer(video_editor_renderer)
 	production_pipeline\3aqc_and_safety(qc_and_safety)
 	production_pipeline\3adeliver_export(deliver_export)
+	production_pipeline\3a__start__ --> production_pipeline\3agenerate_sfx;
+	production_pipeline\3a__start__ --> production_pipeline\3avoice_and_timing;
+	production_pipeline\3agenerate_sfx --> production_pipeline\3avideo_editor_renderer;
 	production_pipeline\3aqc_and_safety --> production_pipeline\3adeliver_export;
 	production_pipeline\3avideo_editor_renderer --> production_pipeline\3aqc_and_safety;
 	production_pipeline\3avoice_and_timing --> production_pipeline\3avideo_editor_renderer;

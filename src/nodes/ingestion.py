@@ -83,6 +83,8 @@ You extract table of contents, identify key concepts, and create summaries."""
 3. A comprehensive summary in 3-6 concise paragraphs
 4. What language does the lecture notes use. Write in ISO 639 language codes.
 
+Return the content with the same language as the source language
+
 Lecture content:
 {joined}"""
 
@@ -109,12 +111,14 @@ def quiz_generator_node(state: Dict[str, Any], llm: BaseChatModel) -> Dict[str, 
     """
     concepts = state.get("key_concepts", [])
     summary = state.get("summary", "")
+    language = state.get("language", "")
 
     quiz_text = simple_llm_call(
         llm,
         "You create quiz questions and answers from lecture material.",
         f"Using these key concepts and summary, create 5-10 Q&A items in a simple numbered list. \n\n"
-        f"Key concepts:\n{concepts}\n\nSummary:\n{summary}",
+        f"Key concepts:\n{concepts}\n\nSummary:\n{summary}"
+        f"Keep the source language: {language}",
     )
 
     return {"quiz_items": [{"raw": quiz_text}]}

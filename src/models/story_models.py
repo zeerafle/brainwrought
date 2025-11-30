@@ -53,7 +53,9 @@ class AudienceAndStyleProfile(BaseModel):
     production_style: VideoProductionStyle = Field(
         description="Video production specifics"
     )
-    calls_to_action: List[str] = Field(description="Primary and secondary CTAs")
+    calls_to_action: List[str] = Field(
+        description="Primary and secondary CTAs. Use source language."
+    )
     hashtags: List[str] = Field(description="Recommended hashtags for social media")
     voice_tone_description: str = Field(description="A short voice tone description.")
 

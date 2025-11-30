@@ -4,6 +4,7 @@ from typing import Any, Dict
 
 from langchain_core.language_models import BaseChatModel
 
+from config import get_openai_llm
 from models.story_models import (
     AudienceAndStyleProfile,
     SceneBySceneScript,
@@ -29,6 +30,7 @@ def audience_and_style_profiler_node(
     import uuid
 
     summary = state.get("summary", "")
+    language = state.get("language", "")
 
     # Generate session_id if not present, or use env var for testing
     session_id = (
@@ -41,7 +43,8 @@ def audience_and_style_profiler_node(
         "Create detailed, actionable profiles that combine audience demographics, content preferences, production style, and voice tone guidance.",
         f"Given this lecture summary, create a complete audience and style profile for a TikTok/YouTube Shorts educational video series. "
         f"Include: core persona, content preferences, key messages, production style (hooks, visuals, pacing), CTAs, hashtags, and short voice tone description for TTS.\n\n"
-        f"Summary:\n{summary}",
+        f"Summary:\n{summary}"
+        f"Note: For calls_to_action, use source language: {language}",
         AudienceAndStyleProfile,
     )
 
@@ -71,14 +74,15 @@ def scene_by_scene_script_node(
     summary = state.get("summary", "")
     key_concepts = state.get("key_concepts", [])
     hooks = state.get("hook_ideas", [])
-    memes = state.get("meme_concepts")
+    memes = state.get("meme_concepts", [])
+    language = state.get("language", "")
 
     script = structured_llm_call(
         llm,
         "You write scene-by-scene scripts for 30-90 second educational brainrot-style videos. "
+        f"Write it in source language: {language}"
         "Each scene must have: on-screen action (visuals, memes, animations), dialogue/VO (narrator script), "
         "and on-screen text (captions, code, tips). Make it fast-paced, engaging, and meme-heavy. "
-        "Include popular meme formats like Drake Hotline Bling, Distracted Boyfriend, Surprised Pikachu, Expanding Brain, etc. "
         "For technical content, show terminal commands, code snippets, and practical examples.",
         f"Using the following information, create a complete numbered scene-by-scene script for a brainrot-style educational video. "
         f"Each scene should have: scene_number, on_screen_action, dialogue_vo, and on_screen_text.\n\n"
@@ -92,7 +96,8 @@ def scene_by_scene_script_node(
         f"- Show practical examples and code where appropriate\n"
         f"- End with a clear call-to-action\n"
         f"- Keep the pace fast and engaging\n"
-        f"- Structure on-screen text with clear formatting (use \\n for line breaks, proper spacing for code blocks)",
+        f"- Structure on-screen text with clear formatting (use \\n for line breaks, proper spacing for code blocks)"
+        f"- Keep it in the source language: {language}",
         SceneBySceneScript,
     )
 
@@ -115,6 +120,7 @@ def asset_planner_node(state: Dict[str, Any], llm: BaseChatModel) -> Dict[str, A
     """
     from pathlib import Path
 
+    llm = get_openai_llm("gpt-5.1")
     scenes = state.get("scenes", [])
 
     # Get list of available SFX
@@ -128,9 +134,9 @@ def asset_planner_node(state: Dict[str, Any], llm: BaseChatModel) -> Dict[str, A
         "You plan simple reusable assets (clips, BGM, SFX) for social videos.",
         f"Given this scene-by-scene script, list for each scene the suggested video assets, "
         f"BGM mood, and SFX.\n\n"
-        f"Available SFX files (prefer this as much as possible):\n{', '.join(available_sfx)}\n\n"
+        f"Available SFX files (prefer this as much as possible):\n{'\n'.join(available_sfx)}\n\n"
         f"For SFX, provide a description (or filename if available) and a timestamp_offset (seconds from start of scene).\n"
-        f"If a suitable SFX is not in the list, describe the sound you want (e.g. 'futuristic whoosh', 'digital glitch').\n\n"
+        f"Read carefully, if a suitable SFX is not in the list, describe the sound you want (e.g. 'futuristic whoosh', 'digital glitch').\n\n"
         f"Scenes:\n{scenes}",
         Scenes,
     )

@@ -1,7 +1,7 @@
 """Node functions for meme and trends analysis."""
 
-import random
 import os
+import random
 from typing import Any, Dict
 
 from langchain_core.language_models import BaseChatModel
@@ -17,7 +17,6 @@ from models.meme_models import (
 )
 from tools import get_mcp_tools, get_tavily_search
 from utils.llm_utils import structured_llm_call
-
 
 # Get recursion limit from env or default to 15
 RECURSION_LIMIT = int(os.getenv("GRAPH_RECURSION_LIMIT", "15"))
@@ -75,7 +74,6 @@ async def social_media_trends_node(
         structure_prompt = HumanMessage(
             content="""Based on the research above, provide a structured analysis with:
             - 3-5 viral examples (with URLs, platform, metrics, and hooks)
-            - Common hooks found
             - Trending formats
             - Specific recommendations
 
@@ -281,6 +279,7 @@ def hook_concept_node(state: Dict[str, Any], llm: BaseChatModel) -> Dict[str, An
     summary = state.get("summary")
     trend_analysis = state.get("trend_analysis")
     slang_analysis = state.get("slang_analysis")
+    language = state.get("language", "")
 
     # TODO: include current time for recent searches
     hooks = structured_llm_call(
@@ -291,6 +290,7 @@ def hook_concept_node(state: Dict[str, Any], llm: BaseChatModel) -> Dict[str, An
         f"Style profile: \n{style_profile}\n\n"
         f"Summary:\n{summary}\n\n"
         f"Trend analysis: \n{trend_analysis}"
+        f"Language: \n{language}"
         f"Slang analysis: \n{slang_analysis}",
         HookConcept,
     )
@@ -314,6 +314,7 @@ def meme_concept_node(state: Dict[str, Any], llm: BaseChatModel) -> Dict[str, An
     summary = state.get("summary")
     trend_analysis = state.get("trend_analysis")
     slang_analysis = state.get("slang_analysis")
+    language = state.get("language", "")
 
     memes = structured_llm_call(
         llm,
@@ -323,6 +324,7 @@ def meme_concept_node(state: Dict[str, Any], llm: BaseChatModel) -> Dict[str, An
         f"Style profile: \n{style_profile}\n\n"
         f"Summary:\n{summary}\n\n"
         f"Trend analysis: \n{trend_analysis}"
+        f"Language: \n{language}"
         f"Slang analysis: \n{slang_analysis}",
         MemeConcept,
     )

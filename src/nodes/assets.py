@@ -47,8 +47,8 @@ def generate_sfx_assets_node(
     # Get existing files
     existing_files = {f.name: f for f in sfx_stock_dir.glob("*.mp3")}
 
-    # track newly generated sfx files
-    newly_generated_sfx: list[Path] = []
+    # Track all SFX files used (for Modal Volume upload)
+    all_used_sfx: set[Path] = set()
 
     for scene in scenes:
         sfx_list = scene.get("sfx", [])
@@ -132,15 +132,16 @@ def generate_sfx_assets_node(
                 # Remotion expects "vol/stock/sfx/filename.mp3"
                 sfx_item["audio_path"] = f"vol/stock/sfx/{final_path.name}"
 
-    # Upload newly generated SFX files to Modal Volume
-    if newly_generated_sfx:
-        print(
-            f"📤 Uploading {len(newly_generated_sfx)} new SFX file(s) to Modal Volume..."
-        )
+                # Track for Modal Volume upload
+                all_used_sfx.add(final_path)
+
+    # Upload all SFX files to Modal Volume
+    if all_used_sfx:
+        print(f"📤 Uploading {len(all_used_sfx)} SFX file(s) to Modal Volume...")
         try:
             assets_vol = modal.Volume.from_name("ltx-outputs", create_if_missing=True)
             with assets_vol.batch_upload(force=True) as batch:
-                for sfx_path in newly_generated_sfx:
+                for sfx_path in all_used_sfx:
                     # Upload to stock/sfx/ on the volume
                     # The volume is mounted at public/vol, so the path becomes vol/stock/sfx/...
                     remote_path = f"stock/sfx/{sfx_path.name}"
