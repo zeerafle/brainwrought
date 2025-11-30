@@ -28,9 +28,22 @@ export const SFXAssetSchema = z.object({
   audio_path: z.string().optional(),
 });
 
+export const AssetDescriptorSchema = z.object({
+  type: z.enum(['video', 'image', 'meme']).optional(),
+  description: z.string().optional(),
+  generated_video_path: z.string().optional(),
+  generated_image_paths: z.array(z.string()).optional(),
+  generated_meme_paths: z.array(z.string()).optional(),
+  path: z.string().optional(),
+  paths: z.array(z.string()).optional(),
+});
+
 export const SceneAssetSchema = z.object({
   scene_name: z.string(),
-  video_asset: z.array(z.string()),
+  asset: AssetDescriptorSchema.optional(),
+  video_asset: z.array(z.string()).optional(),
+  image_asset: z.array(z.string()).optional(),
+  meme_asset: z.array(z.string()).optional(),
   bgm: z.array(z.string()).optional(),
   sfx: z.array(SFXAssetSchema).optional(),
 });

@@ -51,33 +51,53 @@ class LTXVideo:
         self.pipe = DiffusionPipeline.from_pretrained(
             "Lightricks/LTX-Video", torch_dtype=torch.bfloat16
         )
+
         self.pipe.to("cuda")
+        _vae = getattr(self.pipe, "vae", None)
+        (_vae and hasattr(_vae, "enable_tiling") and _vae.enable_tiling())
 
     @modal.method()
     def generate(
         self,
         prompt: str,
         session_id: str = "default",
-        negative_prompt: str = "worst quality, blurry, jittery, distorted",
-        num_inference_steps: int = 100,
-        guidance_scale: float = 4.5,
-        num_frames: int = 150,
+        negative_prompt: str = "worst quality, inconsistent motion, blurry, jittery, distorted, artifacts",
+        num_inference_steps: int = 30,
+        guidance_scale: float = 3.5,
+        num_frames: int = 97,
         width: int = 704,
         height: int = 480,
+        fps: int = 24,
+        seed: int | None = None,
     ) -> str:
         """Generate video from text prompt and return the video file path."""
         from diffusers.utils import (  # pyright: ignore[reportMissingImports]
             export_to_video,
         )
 
+        # Using preloaded pipeline (best public dev model or umbrella fallback loaded at startup)
+
+        # Using caller-provided or default steps/guidance
+
+        adjusted_width = max(32, width - (width % 32))
+        adjusted_height = max(32, height - (height % 32))
+        adjusted_frames = max(9, ((num_frames - 1) // 8) * 8 + 1)
+        import torch as _torch
+
+        _gen = (
+            _torch.Generator(device="cuda").manual_seed(seed)
+            if seed is not None
+            else None
+        )
         frames = self.pipe(
             prompt=prompt,
             negative_prompt=negative_prompt,
             num_inference_steps=num_inference_steps,
             guidance_scale=guidance_scale,
-            num_frames=num_frames,
-            width=width,
-            height=height,
+            num_frames=adjusted_frames,
+            width=adjusted_width,
+            height=adjusted_height,
+            generator=_gen,
         ).frames[0]
 
         # Save to Modal Volume
@@ -95,7 +115,7 @@ class LTXVideo:
             video_path = OUTPUTS_PATH / filename
             relative_path = filename
 
-        export_to_video(frames, video_path)
+        export_to_video(frames, video_path, fps=fps)
         outputs_vol.commit()
 
         return relative_path

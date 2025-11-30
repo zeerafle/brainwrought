@@ -46,21 +46,36 @@ export const SceneManager: React.FC<BrainrotProps> = ({ scenes, asset_plan, voic
         const startFrame = currentFrame;
         currentFrame += durationInFrames;
 
-        const videoAsset = assets?.video_asset?.[0]; // Take first video asset
+        const assetObj = (assets as any)?.asset;
 
-        let assetPath = null;
-        if (videoAsset) {
-            if (videoAsset.startsWith('vol/') || videoAsset.startsWith('http')) {
-                assetPath = videoAsset;
+        const legacyVideoAsset = assets?.video_asset?.[0]; // Backward compat
+
+        let videoPath: string | null = null;
+        if (assetObj?.type === 'video') {
+            videoPath = assetObj.generated_video_path || assetObj.path || null;
+        }
+        if (!videoPath && legacyVideoAsset) {
+            if (legacyVideoAsset.startsWith('vol/') || legacyVideoAsset.startsWith('http')) {
+                videoPath = legacyVideoAsset;
             } else {
-                if (videoAsset.includes(' ')) {
-                    // console.warn(`⚠️ Asset path looks like a description, skipping: "${videoAsset}"`);
-                    assetPath = null;
+                if (legacyVideoAsset.includes(' ')) {
+                    videoPath = null;
                 } else {
-                    assetPath = `vol/${videoAsset}`;
+                    videoPath = `vol/${legacyVideoAsset}`;
                 }
             }
         }
+
+        const memePaths: string[] =
+            (assetObj?.generated_meme_paths as string[] | undefined) ??
+            (assetObj?.generated_image_paths as string[] | undefined) ??
+            (assetObj?.paths as string[] | undefined) ??
+            (assets?.meme_asset as string[] | undefined) ??
+            (assets?.image_asset as string[] | undefined) ??
+            [];
+
+        // Prepare image sequences if multiple memes for the scene
+        const perMemeFrames = memePaths.length > 0 ? Math.max(1, Math.floor(durationInFrames / memePaths.length)) : 0;
 
         const audioPath = timing?.audio_path;
         const finalAudioSrc = audioPath ? (audioPath.startsWith("http") ? audioPath : staticFile(audioPath)) : null;
@@ -69,10 +84,25 @@ export const SceneManager: React.FC<BrainrotProps> = ({ scenes, asset_plan, voic
 
         return (
           <Sequence key={index} from={startFrame} durationInFrames={durationInFrames} style={{ zIndex: 1 }}>
-            {/* Only render MediaLayer if we have a specific asset for this scene */}
-            {assetPath && (
-                <MediaLayer assetPath={assetPath} type="video" />
+            {/* Scene-specific media layers */}
+            {videoPath && (
+                <MediaLayer assetPath={videoPath} type="video" />
             )}
+
+            {/* Meme images for this scene (if any), shown sequentially across the scene */}
+            {memePaths.length > 0 &&
+              memePaths.map((mPath: string, mIndex: number) => {
+                const from = mIndex * perMemeFrames;
+                const dur = mIndex === memePaths.length - 1 ? Math.max(1, durationInFrames - from) : perMemeFrames;
+                // Heuristic: accept as-is if absolute/vol path, else prefix with vol/
+                const finalPath = (mPath.startsWith('vol/') || mPath.startsWith('http')) ? mPath : (mPath.includes(' ') ? mPath : `vol/${mPath}`);
+                return (
+                  <Sequence key={`meme-${index}-${mIndex}`} from={from} durationInFrames={dur}>
+                    <MediaLayer assetPath={finalPath} type="image" />
+                  </Sequence>
+                );
+              })
+            }
 
             {/* On-Screen Text Overlay */}
             {scene.on_screen_text && (

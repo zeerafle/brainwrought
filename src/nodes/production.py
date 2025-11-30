@@ -15,146 +15,127 @@ from utils.llm_utils import simple_llm_call
 from utils.voice_designer import VoiceDesigner
 
 
-def generate_video_assets_node(
+async def generate_video_assets_node(
     state: Dict[str, Any], llm: BaseChatModel
 ) -> Dict[str, Any]:
     """
     Generate video assets from scene descriptions using LTX Video model.
 
-    Reads video asset descriptions from asset_plan (List[SceneAssets]),
-    refines prompts with LLM, generates videos via Modal LTX function,
-    and updates asset_plan with volume paths for Remotion.
+    Only processes scenes where the scene asset type is 'video'.
+    Supports:
+      - scene['asset'] or scene['video_assets'] with {type, description}
 
-    Volume structure:
-        ltx-outputs/
-        ├── sessions/{session_id}/
-        │   ├── audio/          # Voice-over files
-        │   └── video/          # Generated video clips
-        │       └── scene_{idx}_asset_{idx}_{timestamp}.mp4
-        └── stock/
-            ├── gameplay/       # Background gameplay footage
-            └── sfx/            # Sound effects
-
-    Args:
-        state: Pipeline state with:
-            - asset_plan: List[SceneAssets] where each has video_asset: List[str]
-            - session_id: Unique session identifier
-
-    Returns:
-        Dict with:
-            - video_filenames: List of generated video paths (relative to volume)
-            - asset_plan: Updated List[SceneAssets] with video paths for Remotion
+    Uses the original description as the prompt (no refinement step),
+    generates videos via Modal LTX, and updates asset_plan with volume paths
+    for Remotion under 'generated_video_path'.
     """
-    from langchain_core.messages import HumanMessage, SystemMessage
+    # Get asset_plan (may be Pydantic or dict)
+    asset_plan: Any = state.get("asset_plan", [])
 
-    # Get asset_plan as list of SceneAssets
-    asset_plan: list = state.get("asset_plan", [])
-
-    # Handle Pydantic models if needed
     if hasattr(asset_plan, "model_dump"):
         asset_plan = asset_plan.model_dump()
     elif hasattr(asset_plan, "dict"):
         asset_plan = asset_plan.dict()
 
-    # Ensure it's a list (SceneAssets are stored directly, not under "scenes" key)
+    # Normalize to a list of scene dicts
     if isinstance(asset_plan, dict) and "scenes" in asset_plan:
-        # Legacy format compatibility
-        asset_plan = asset_plan["scenes"]
+        scenes_list = asset_plan["scenes"]
+    else:
+        scenes_list = asset_plan
 
-    if not asset_plan:
+    if not scenes_list:
         print("⚠️ No asset_plan found in state, skipping video generation")
         return {"video_filenames": [], "asset_plan": []}
 
     session_id = state.get("session_id", "default")
 
-    # Build batch of prompts to refine, tracking source indices
-    # Structure: [(scene_idx, asset_idx, scene_name, description), ...]
-    asset_metadata: list[tuple[int, int, str, str]] = []
-    messages_batch = []
+    # Collect generation tasks: (scene_idx, asset_key, description)
+    gen_tasks: list[tuple[int, str, str]] = []
 
-    system_prompt = """You are a professional artist and text-to-video prompt engineer.
-    You refine the given prompt to be more detailed and appropriate for text-to-video model.
-    Focus on visual elements, lighting, camera movement, and atmosphere.
-    Only respond with the refined prompt, nothing else.
-    """
-
-    for scene_idx, scene_assets in enumerate(asset_plan):
-        scene_name = scene_assets.get("scene_name", f"Scene {scene_idx + 1}")
-        video_descriptions = scene_assets.get("video_asset", [])
-
-        # Only generate the first video asset per scene
-        if not video_descriptions:
+    for scene_idx, scene in enumerate(scenes_list):
+        # Accept either 'asset' or 'video_assets' for the single-asset schema
+        asset_obj = scene.get("asset") or scene.get("video_assets")
+        if not asset_obj:
             continue
 
-        description = video_descriptions[0]
-        asset_idx = 0
+        # Normalize potential Pydantic model
+        if hasattr(asset_obj, "model_dump"):
+            asset_obj = asset_obj.model_dump()
+        elif hasattr(asset_obj, "dict"):
+            asset_obj = asset_obj.dict()
 
-        # Skip if already a path (already generated)
-        if description.startswith("vol/") or description.startswith("http"):
+        asset_type = str(asset_obj.get("type", "")).lower()
+        description = asset_obj.get("description", "")
+
+        # Only generate when asset is explicitly video
+        if asset_type != "video":
             continue
 
-        asset_metadata.append((scene_idx, asset_idx, scene_name, description))
-        messages_batch.append(
-            [
-                SystemMessage(content=system_prompt),
-                HumanMessage(
-                    content=f"Scene: {scene_name}\nAsset description: {description}"
-                ),
-            ]
-        )
+        # Skip if already generated
+        if isinstance(asset_obj, dict) and asset_obj.get("generated_video_path"):
+            continue
 
-    if not messages_batch:
-        print("ℹ️ No new video assets to generate")
-        return {"video_filenames": [], "asset_plan": asset_plan}
+        # Also skip if description is already a path/URL for safety
+        if isinstance(description, str) and (
+            description.startswith("vol/") or description.startswith("http")
+        ):
+            continue
 
-    print(f"🎬 Refining {len(messages_batch)} video prompts...")
-    responses = llm.batch(messages_batch)
+        if not description:
+            continue
 
-    refined_prompts = [
-        resp.content if isinstance(resp.content, str) else str(resp.content)
-        for resp in responses
-    ]
+        asset_key = "asset" if "asset" in scene else "video_assets"
+        gen_tasks.append((scene_idx, asset_key, description))
 
-    # Generate videos via Modal LTX function
-    print(f"🎥 Generating {len(refined_prompts)} videos for session: {session_id}...")
+    if not gen_tasks:
+        print("ℹ️ No new 'video' type assets to generate")
+        return {"video_filenames": [], "asset_plan": scenes_list}
+
+    # Generate videos via Modal LTX function using original descriptions
+    print(f"🎥 Generating {len(gen_tasks)} videos for session: {session_id}...")
     generate_func = modal.Function.from_name("brainwrought-ltx", "LTXVideo.generate")
 
-    # Pass session_id to each generation call
-    # LTX returns paths like: sessions/{session_id}/video/{timestamp}_{prompt_slug}.mp4
-    video_filenames = list(
-        generate_func.starmap([(prompt, session_id) for prompt in refined_prompts])
-    )
+    prompts = [desc for (_, _, desc) in gen_tasks]
+    args = [(prompt, session_id) for prompt in prompts]
+
+    # Use async iteration inside async context
+    video_filenames: list[str] = []
+    async for filename in generate_func.starmap.aio(args):
+        video_filenames.append(filename)
 
     print(f"✅ Generated {len(video_filenames)} video files")
 
-    # Update asset_plan with generated video paths
-    # Map back using tracked indices
-    updated_asset_plan = [dict(scene) for scene in asset_plan]  # Deep copy
-
-    for (scene_idx, asset_idx, _, _), relative_path in zip(
-        asset_metadata, video_filenames
-    ):
-        # Remotion expects paths prefixed with "vol/" (volume mount point in public/)
-        # relative_path from LTX: sessions/{session_id}/video/{filename}.mp4
+    # Update plan with generated paths
+    updated_plan = [dict(s) for s in scenes_list]  # shallow copy of scenes
+    for (scene_idx, asset_key, _desc), relative_path in zip(gen_tasks, video_filenames):
         remotion_path = f"vol/{relative_path}"
 
-        # Update the specific asset in the scene
-        if scene_idx < len(updated_asset_plan):
-            current_assets = updated_asset_plan[scene_idx].get("video_asset", [])
-            if asset_idx < len(current_assets):
-                current_assets[asset_idx] = remotion_path
-            updated_asset_plan[scene_idx]["video_asset"] = current_assets
+        if scene_idx >= len(updated_plan):
+            continue
+
+        asset_obj = updated_plan[scene_idx].get(asset_key, {})
+        if hasattr(asset_obj, "model_dump"):
+            asset_obj = asset_obj.model_dump()
+        elif hasattr(asset_obj, "dict"):
+            asset_obj = asset_obj.dict()
+
+        if isinstance(asset_obj, dict):
+            asset_obj["generated_video_path"] = remotion_path
+            updated_plan[scene_idx][asset_key] = asset_obj
 
     # Log summary
-    for scene in updated_asset_plan:
+    for scene in updated_plan:
         scene_name = scene.get("scene_name", "Unknown")
-        assets = scene.get("video_asset", [])
-        generated = [a for a in assets if a.startswith("vol/sessions/")]
-        print(f"   📹 {scene_name}: {len(generated)}/{len(assets)} videos generated")
+        asset_obj = scene.get("asset") or scene.get("video_assets")
+        generated = isinstance(asset_obj, dict) and isinstance(
+            asset_obj.get("generated_video_path"), str
+        )
+        if generated:
+            print(f"   📹 {scene_name}: 1/1 video generated")
 
     return {
         "video_filenames": video_filenames,
-        "asset_plan": updated_asset_plan,
+        "asset_plan": updated_plan,
     }
 
 
@@ -578,6 +559,60 @@ def video_editor_renderer_node(
         asset_plan = asset_plan.model_dump()
     elif hasattr(asset_plan, "dict"):
         asset_plan = asset_plan.dict()
+
+    # Merge generated memes into the asset_plan so Remotion can render them
+    generated_memes = state.get("generated_memes", [])
+    try:
+        scenes_container = (
+            asset_plan["scenes"]
+            if isinstance(asset_plan, dict) and "scenes" in asset_plan
+            else asset_plan
+        )
+        if isinstance(scenes_container, list) and generated_memes:
+            # Build index by scene_name for quick lookup
+            index_by_name = {
+                s.get("scene_name"): i
+                for i, s in enumerate(scenes_container)
+                if isinstance(s, dict)
+            }
+            for meme in generated_memes:
+                if not meme or not meme.get("success") or not meme.get("meme_url"):
+                    continue
+                scene_name = meme.get("scene_name")
+                if not scene_name or scene_name not in index_by_name:
+                    continue
+                i = index_by_name[scene_name]
+                scene_item = dict(scenes_container[i])
+                # Normalize asset object
+                asset_obj = (
+                    scene_item.get("asset") or scene_item.get("video_assets") or {}
+                )
+                if hasattr(asset_obj, "model_dump"):
+                    asset_obj = asset_obj.model_dump()
+                elif hasattr(asset_obj, "dict"):
+                    asset_obj = asset_obj.dict()
+                if not isinstance(asset_obj, dict):
+                    asset_obj = {}
+                # Ensure proper type and append path
+                asset_obj.setdefault("type", "meme")
+                paths_key = "generated_meme_paths"
+                existing = list(asset_obj.get(paths_key) or [])
+                if meme["meme_url"] not in existing:
+                    existing.append(meme["meme_url"])
+                asset_obj[paths_key] = existing
+                # Write back to scene
+                if "asset" in scene_item or "video_assets" not in scene_item:
+                    scene_item["asset"] = asset_obj
+                else:
+                    scene_item["video_assets"] = asset_obj
+                scenes_container[i] = scene_item
+            # Put back into asset_plan if it had a 'scenes' wrapper
+            if isinstance(asset_plan, dict) and "scenes" in asset_plan:
+                asset_plan["scenes"] = scenes_container
+            else:
+                asset_plan = scenes_container
+    except Exception as e:
+        print(f"⚠️ Failed to merge generated memes into asset_plan: {e}")
 
     # Calculate total duration from voice timings
     calculated_duration = sum(vt.get("duration_seconds", 0) for vt in voice_timing)

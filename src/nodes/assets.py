@@ -1,6 +1,5 @@
 """Node functions for asset generation (SFX, memes, etc.)."""
 
-import asyncio
 import os
 import re
 import shutil
@@ -11,7 +10,6 @@ import modal
 from elevenlabs import ElevenLabs
 from langchain_core.language_models import BaseChatModel
 from langchain_mcp_adapters.client import MultiServerMCPClient
-from langchain_mcp_adapters.tools import load_mcp_tools
 from langgraph.prebuilt import create_react_agent
 
 
@@ -292,6 +290,7 @@ Important: If the template requires fewer text boxes than provided, use only the
             print(f"   ✅ Generated meme: {meme_url}")
             return {
                 "meme_name_reference": meme_name,
+                "scene_name": meme_concept.get("scene_name"),
                 "text_to_add": text_to_add,
                 "meme_url": meme_url,
                 "success": True,
@@ -304,6 +303,7 @@ Important: If the template requires fewer text boxes than provided, use only the
                 print(f"   ✅ Generated meme: {meme_url}")
                 return {
                     "meme_name_reference": meme_name,
+                    "scene_name": meme_concept.get("scene_name"),
                     "text_to_add": text_to_add,
                     "meme_url": meme_url,
                     "success": True,
@@ -312,6 +312,7 @@ Important: If the template requires fewer text boxes than provided, use only the
             print("   ⚠️  Could not extract meme URL from response")
             return {
                 "meme_name_reference": meme_name,
+                "scene_name": meme_concept.get("scene_name"),
                 "text_to_add": text_to_add,
                 "meme_url": None,
                 "success": False,
@@ -323,6 +324,7 @@ Important: If the template requires fewer text boxes than provided, use only the
         print(f"   ❌ Failed to generate meme '{meme_name}': {e}")
         return {
             "meme_name_reference": meme_name,
+            "scene_name": meme_concept.get("scene_name"),
             "text_to_add": text_to_add,
             "meme_url": None,
             "success": False,
@@ -382,30 +384,27 @@ async def _generate_memes_async(
 
     results: List[Dict[str, Any]] = []
 
-    # Create client and use session for stdio transport
+    # Create client following shared MCP client pattern (no explicit session)
     client = MultiServerMCPClient(cast(Any, mcp_config))
 
     try:
-        async with client.session("imgflip") as session:
-            # Load tools from the imgflip MCP server session
-            tools = await load_mcp_tools(session)
+        tools = await client.get_tools()
+        if not tools:
+            print("❌ No tools available from imgflip MCP server")
+            return []
 
-            if not tools:
-                print("❌ No tools available from imgflip MCP server")
-                return []
+        print(f"🔧 Available imgflip tools: {[t.name for t in tools]}")
 
-            print(f"🔧 Available imgflip tools: {[t.name for t in tools]}")
+        # Generate memes sequentially to avoid rate limiting
+        for i, meme_concept in enumerate(meme_concepts):
+            print(
+                f"\n🎨 Generating meme {i + 1}/{len(meme_concepts)}: "
+                f"{meme_concept.get('meme_name_reference', 'Unknown')}"
+            )
 
-            # Generate memes sequentially to avoid rate limiting
-            for i, meme_concept in enumerate(meme_concepts):
-                print(
-                    f"\n🎨 Generating meme {i + 1}/{len(meme_concepts)}: "
-                    f"{meme_concept.get('meme_name_reference', 'Unknown')}"
-                )
-
-                result = await _generate_single_meme(meme_concept, tools, llm)
-                if result:
-                    results.append(result)
+            result = await _generate_single_meme(meme_concept, tools, llm)
+            if result:
+                results.append(result)
     except Exception as e:
         print(f"❌ Error connecting to imgflip MCP server: {e}")
         print("   Make sure imgflip-mcp is installed: pip install imgflip-mcp")
@@ -415,54 +414,70 @@ async def _generate_memes_async(
     return results
 
 
-def generate_meme_assets_node(
+async def generate_meme_assets_node(
     state: Dict[str, Any], llm: BaseChatModel
 ) -> Dict[str, Any]:
     """
-    Generate meme assets using imgflip MCP.
-
-    Args:
-        state: Pipeline state with meme_concepts.
-        llm: Language model for the agent.
-
-    Returns:
-        Dict with generated_memes list containing meme URLs and metadata.
+    Generate meme assets using imgflip MCP based on the asset plan.
+    Only processes scenes where the asset type is 'meme'. Uses the asset's
+    description as the meme concept (template search phrase) and as the text payload.
     """
-    meme_concepts = state.get("meme_concepts", [])
+    # Normalize asset_plan
+    asset_plan = state.get("asset_plan", {})
+    if hasattr(asset_plan, "model_dump"):
+        asset_plan = asset_plan.model_dump()
+    elif hasattr(asset_plan, "dict"):
+        asset_plan = asset_plan.dict()
 
-    if not meme_concepts:
-        print("⚠️  No meme concepts provided")
+    scenes = asset_plan.get("scenes", [])
+    if not scenes:
+        print("⚠️  No scenes found in asset_plan")
         return {"generated_memes": []}
 
-    # Handle different meme_concepts formats
+    # Build meme concepts from scene assets
     processed_concepts = []
-    for concept in meme_concepts:
-        if hasattr(concept, "model_dump"):
-            processed_concepts.append(concept.model_dump())
-        elif hasattr(concept, "dict"):
-            processed_concepts.append(concept.dict())
-        elif isinstance(concept, dict):
-            processed_concepts.append(concept)
-        else:
-            # If it's a string, wrap it in a basic structure
-            processed_concepts.append(
-                {
-                    "meme_name_reference": str(concept),
-                    "text_to_add": [],
-                }
-            )
+    for scene in scenes:
+        scene_name = scene.get("scene_name", "Unknown Scene")
+
+        # Support both current and future schema names:
+        # - current: 'video_assets' with {description, type}
+        # - future:  'asset' with {description, type}
+        asset_obj = scene.get("asset") or scene.get("video_assets")
+        if not asset_obj:
+            continue
+
+        # Normalize potential Pydantic object into dict
+        if hasattr(asset_obj, "model_dump"):
+            asset_obj = asset_obj.model_dump()
+        elif hasattr(asset_obj, "dict"):
+            asset_obj = asset_obj.dict()
+
+        asset_type = str(asset_obj.get("type", "")).lower()
+        description = asset_obj.get("description", "")
+
+        if asset_type != "meme":
+            continue
+        if not description:
+            print(f"⚠️  Skipping meme generation for '{scene_name}' (no description)")
+            continue
+
+        # Minimal, robust concept: use description for both template search and text payload
+        processed_concepts.append(
+            {
+                "scene_name": scene_name,
+                "meme_name_reference": description,  # agent will search with relevant keywords
+                "text_to_add": [description],  # agent can trim/fit into boxes
+            }
+        )
+
+    if not processed_concepts:
+        print("⚠️  No meme-type assets found in asset_plan")
+        return {"generated_memes": []}
 
     print(f"\n🖼️  Generating {len(processed_concepts)} meme(s) using imgflip MCP...")
 
-    # Run the async meme generation
-    try:
-        results = asyncio.run(_generate_memes_async(processed_concepts, llm))
-    except RuntimeError:
-        # If there's already an event loop running, use it
-        loop = asyncio.get_event_loop()
-        results = loop.run_until_complete(
-            _generate_memes_async(processed_concepts, llm)
-        )
+    # Run the async meme generation (no new event loop to avoid lock binding issues)
+    results = await _generate_memes_async(processed_concepts, llm)
 
     # Summary
     successful = [r for r in results if r.get("success")]
@@ -475,6 +490,9 @@ def generate_meme_assets_node(
     if successful:
         print("\n🖼️  Generated meme URLs:")
         for meme in successful:
-            print(f"   - {meme.get('meme_name_reference')}: {meme.get('meme_url')}")
+            label = (
+                meme.get("meme_name_reference") or meme.get("scene_name") or "unknown"
+            )
+            print(f"   - {label}: {meme.get('meme_url')}")
 
     return {"generated_memes": results}

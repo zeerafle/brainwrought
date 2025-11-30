@@ -132,9 +132,14 @@ def asset_planner_node(state: Dict[str, Any], llm: BaseChatModel) -> Dict[str, A
     plan = structured_llm_call(
         llm,
         "You plan simple reusable assets (clips, BGM, SFX) for social videos.",
-        f"Given this scene-by-scene script, list for each scene the suggested video assets, "
-        f"BGM mood, and SFX.\n\n"
-        f"Available SFX files (prefer this as much as possible):\n{'\n'.join(available_sfx)}\n\n"
+        f"Given this scene-by-scene script, "
+        "generate for each scene the following: "
+        "- suggested video assets (each scene can only have one assets, and its either video or meme, describe it accordingly),\n"
+        "  - if video generate a cringe/absurd/weird stock-videos-like description. The more elaborate the better. focus on detailed, chronological descriptions of actions and scenes. Include specific movements, appearances, camera angles, and environmental details - all in a single flowing paragraph. Start directly with the action, and keep descriptions literal and precise.\n"
+        "  - if memes, explain the meme reference/name and additional text\n"
+        "- BGM mood,\n"
+        "- and SFX.\n\n"
+        f"Available SFX files (prefer this as much as possible, use whatever possible):\n{'\n'.join(available_sfx)}\n\n"
         f"For SFX, provide a description (or filename if available) and a timestamp_offset (seconds from start of scene).\n"
         f"Read carefully, if a suitable SFX is not in the list, describe the sound you want (e.g. 'futuristic whoosh', 'digital glitch').\n\n"
         f"Scenes:\n{scenes}",

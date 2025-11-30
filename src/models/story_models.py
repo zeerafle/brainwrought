@@ -1,6 +1,6 @@
 """Pydantic models for story and script generation."""
 
-from typing import List
+from typing import List, Literal
 
 from pydantic import BaseModel, Field
 
@@ -64,11 +64,6 @@ class Scene(BaseModel):
     """Individual scene in a video script."""
 
     scene_number: int = Field(description="Sequential scene number (1, 2, 3, etc.)")
-    on_screen_action: str = Field(
-        description="Detailed description of visual elements, animations, transitions, memes, and on-screen composition. "
-        "Include camera movements, visual effects, meme placements (e.g., 'Drake Hotline Bling meme', 'Surprised Pikachu'), "
-        "split-screen layouts, infographics, terminal windows, etc."
-    )
     dialogue_vo: str = Field(
         description="Complete voice-over or dialogue script for the scene. "
         "This is what the narrator will say. Keep it punchy and fast-paced for brainrot style."
@@ -101,11 +96,16 @@ class SFXAsset(BaseModel):
     )
 
 
+class VideoAssetOrMeme(BaseModel):
+    type: Literal["video", "meme"] = Field(description="Type of asset")
+    description: str = Field(description="The description of the asset")
+
+
 class Assets(BaseModel):
     """Assets required for a scene."""
 
     scene_name: str = Field(description="Name of the scene")
-    video_asset: List[str] = Field(description="List of video assets for the scene")
+    asset: VideoAssetOrMeme = Field(description="Single asset for the scene")
     bgm: List[str] = Field(description="List of background music for the scene")
     sfx: List[SFXAsset] = Field(description="List of sound effects for the scene")
 
