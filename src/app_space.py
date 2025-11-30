@@ -295,6 +295,32 @@ def prefill_job_id(request: gr.Request):
 # ----------------------------
 # Build Gradio UI
 # ----------------------------
+def poll_submit_preview(job_id: str):
+    # If no job_id yet, keep loading hidden and do nothing
+    if not job_id:
+        return gr.update(visible=False), gr.update(value=None)
+    status, progress, logs, hf_url, local_path = check_status(job_id)
+    # If still running, show loader and keep video empty
+    if status in ("PENDING", "RUNNING", "INTERRUPTED") or not (hf_url or local_path):
+        return gr.update(visible=True), gr.update(value=None)
+    # Completed: hide loader and show the video (prefer HF URL if present)
+    video_src = hf_url or local_path
+    return gr.update(visible=False), gr.update(value=video_src, autoplay=True)
+
+
+def submit_job_ui(pdf_file: gr.File):
+    job_id, msg, link = submit_job(pdf_file)
+    # Show loader immediately, clear any previous preview
+    return (
+        job_id,  # job_id_out
+        msg,  # status_text
+        link,  # return_link
+        job_id,  # state_job_id
+        gr.update(visible=True),
+        gr.update(value=None),
+    )
+
+
 with gr.Blocks(title="Brainwrought | Food for your brain") as demo:
     gr.Markdown("# 🧠 Brainwrought ")
     gr.Markdown(
@@ -306,14 +332,43 @@ with gr.Blocks(title="Brainwrought | Food for your brain") as demo:
     with gr.Tab("Submit"):
         pdf = gr.File(label="Upload PDF", file_types=[".pdf"])
         submit_btn = gr.Button("Start")
+
+        # Reserved preview area for a vertical video (height ~ 16:9 inverse)
+        # Height controls vertical sizing; the video maintains its own aspect ratio.
+        submit_loading = gr.Markdown("Rendering… please wait ⏳", visible=False)
+        submit_preview = gr.Video(
+            label="Preview",
+            autoplay=True,
+            height=640,  # good for 9:16 vertical feel; tweak as you like
+        )
+
+        # Keep last submitted job_id here so the poller knows what to check
+        state_job_id = gr.State("")
+
         job_id_out = gr.Textbox(label="Job ID", interactive=False)
         status_text = gr.Markdown()
         return_link = gr.Textbox(label="Return Link", interactive=False)
 
+        # Use the wrapper to set state, show loader, and clear preview immediately
         submit_btn.click(
-            fn=submit_job,
+            fn=submit_job_ui,
             inputs=[pdf],
-            outputs=[job_id_out, status_text, return_link],
+            outputs=[
+                job_id_out,
+                status_text,
+                return_link,
+                state_job_id,
+                submit_loading,
+                submit_preview,
+            ],
+        )
+
+        # Poll to update the loading label and the video preview when done
+        submit_poller = gr.Timer(5.0)
+        submit_poller.tick(
+            fn=poll_submit_preview,
+            inputs=[state_job_id],
+            outputs=[submit_loading, submit_preview],
         )
 
     with gr.Tab("Retrieve"):
