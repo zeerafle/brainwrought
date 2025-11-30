@@ -330,4 +330,4 @@ def meme_concept_node(state: Dict[str, Any], llm: BaseChatModel) -> Dict[str, An
     )
 
     # TODO: fix nested meme_concepts output
-    return {"meme_concepts": memes}
+    return {"meme_concepts": memes.meme_concepts}

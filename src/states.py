@@ -132,6 +132,7 @@ class PipelineState(TypedDict, total=False):
 
     # Production fields
     video_filenames: List[str]
+    generated_memes: list[dict]
     voice_timing: List[VoiceTiming]  # Now structured with VoiceTiming TypedDict
     video_timeline: VideoTimeline  # Now structured with VideoTimeline TypedDict
     qc_notes: List[str]

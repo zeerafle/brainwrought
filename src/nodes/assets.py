@@ -1,13 +1,18 @@
-"""Node functions for asset generation (SFX, etc.)."""
+"""Node functions for asset generation (SFX, memes, etc.)."""
 
+import asyncio
 import os
+import re
 import shutil
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional, cast
 
 import modal
 from elevenlabs import ElevenLabs
 from langchain_core.language_models import BaseChatModel
+from langchain_mcp_adapters.client import MultiServerMCPClient
+from langchain_mcp_adapters.tools import load_mcp_tools
+from langgraph.prebuilt import create_react_agent
 
 
 def generate_sfx_assets_node(
@@ -49,6 +54,7 @@ def generate_sfx_assets_node(
 
     # Track all SFX files used (for Modal Volume upload)
     all_used_sfx: set[Path] = set()
+    newly_generated_sfx: list[Path] = []
 
     for scene in scenes:
         sfx_list = scene.get("sfx", [])
@@ -152,3 +158,323 @@ def generate_sfx_assets_node(
             print(f"⚠️ Failed to upload SFX to Modal Volume: {e}")
 
     return {"asset_plan": {"scenes": scenes}}
+
+
+def _extract_search_terms(meme_name_reference: str) -> List[str]:
+    """
+    Extract search terms from a meme name reference.
+
+    Args:
+        meme_name_reference: The meme name like "Drake Hotline Bling (reject/approve)"
+
+    Returns:
+        List of search terms to try.
+    """
+    # Remove parenthetical descriptions
+    clean_name = re.sub(r"\s*\([^)]*\)\s*", " ", meme_name_reference).strip()
+
+    # Common meme name mappings for better search results
+    meme_mappings = {
+        "drake": ["drake"],
+        "distracted boyfriend": ["distracted", "boyfriend"],
+        "expanding brain": ["brain", "expanding"],
+        "change my mind": ["change my mind"],
+        "two buttons": ["buttons"],
+        "is this a pigeon": ["pigeon", "butterfly"],
+        "woman yelling at cat": ["woman cat", "yelling"],
+        "success kid": ["success"],
+        "one does not simply": ["boromir", "simply"],
+        "roll safe": ["roll safe", "thinking"],
+        "surprised pikachu": ["pikachu"],
+        "galaxy brain": ["brain"],
+        "stonks": ["stonks"],
+        "this is fine": ["fine", "dog fire"],
+        "always has been": ["astronaut"],
+        "gru's plan": ["gru"],
+        "bernie sanders": ["bernie"],
+        "spongebob": ["spongebob"],
+        "patrick": ["patrick"],
+    }
+
+    # Check for known meme names
+    lower_name = clean_name.lower()
+    for meme_key, search_terms in meme_mappings.items():
+        if meme_key in lower_name:
+            return search_terms
+
+    # Default: split by spaces and return significant words
+    words = clean_name.split()
+    # Filter out common words
+    stop_words = {
+        "the",
+        "a",
+        "an",
+        "and",
+        "or",
+        "but",
+        "in",
+        "on",
+        "at",
+        "to",
+        "for",
+        "meme",
+    }
+    significant_words = [w for w in words if w.lower() not in stop_words and len(w) > 2]
+
+    return significant_words[:3] if significant_words else [clean_name]
+
+
+async def _generate_single_meme(
+    meme_concept: Dict[str, Any],
+    tools: List[Any],
+    llm: BaseChatModel,
+) -> Optional[Dict[str, Any]]:
+    """
+    Generate a single meme using imgflip MCP tools.
+
+    Args:
+        meme_concept: Dict with meme_name_reference and text_to_add
+        tools: List of MCP tools from imgflip server
+        llm: Language model for the agent
+
+    Returns:
+        Dict with meme URL and metadata, or None if failed
+    """
+    meme_name = meme_concept.get("meme_name_reference", "")
+    text_to_add = meme_concept.get("text_to_add", [])
+
+    if not meme_name or not text_to_add:
+        print("   ⚠️  Skipping meme with missing name or text")
+        return None
+
+    # Create agent with imgflip tools
+    agent = create_react_agent(llm, tools)
+
+    # Build the prompt for the agent
+    text_boxes_str = "\n".join([f"- {text}" for text in text_to_add])
+
+    prompt = f"""Create a meme based on the following:
+
+Meme template to find: {meme_name}
+
+Text boxes to use (in order):
+{text_boxes_str}
+
+Instructions:
+1. First, search for the meme template using imgflip_search_memes with relevant keywords
+2. Get the template info using imgflip_get_template_info to know how many text boxes it needs
+3. Create the meme using imgflip_create_meme with the template_id and text_boxes array
+4. Return the meme URL
+
+Important: If the template requires fewer text boxes than provided, use only the first ones. If it requires more, you can leave extra boxes empty or combine the text appropriately.
+"""
+
+    try:
+        response = await agent.ainvoke(
+            {"messages": [{"role": "user", "content": prompt}]}
+        )
+
+        # Extract the meme URL from the response
+        final_message = response.get("messages", [])[-1]
+        content = (
+            final_message.content
+            if hasattr(final_message, "content")
+            else str(final_message)
+        )
+
+        # Try to extract URL from the response
+        url_match = re.search(
+            r"https?://[^\s<>\"']+\.(?:jpg|jpeg|png|gif|webp)", content, re.IGNORECASE
+        )
+
+        if url_match:
+            meme_url = url_match.group(0)
+            print(f"   ✅ Generated meme: {meme_url}")
+            return {
+                "meme_name_reference": meme_name,
+                "text_to_add": text_to_add,
+                "meme_url": meme_url,
+                "success": True,
+            }
+        else:
+            # Check for imgflip URLs in different format
+            url_match = re.search(r"https?://i\.imgflip\.com/[^\s<>\"']+", content)
+            if url_match:
+                meme_url = url_match.group(0)
+                print(f"   ✅ Generated meme: {meme_url}")
+                return {
+                    "meme_name_reference": meme_name,
+                    "text_to_add": text_to_add,
+                    "meme_url": meme_url,
+                    "success": True,
+                }
+
+            print("   ⚠️  Could not extract meme URL from response")
+            return {
+                "meme_name_reference": meme_name,
+                "text_to_add": text_to_add,
+                "meme_url": None,
+                "success": False,
+                "error": "Could not extract URL from response",
+                "raw_response": content[:500],
+            }
+
+    except Exception as e:
+        print(f"   ❌ Failed to generate meme '{meme_name}': {e}")
+        return {
+            "meme_name_reference": meme_name,
+            "text_to_add": text_to_add,
+            "meme_url": None,
+            "success": False,
+            "error": str(e),
+        }
+
+
+async def _generate_memes_async(
+    meme_concepts: List[Dict[str, Any]],
+    llm: BaseChatModel,
+) -> List[Dict[str, Any]]:
+    """
+    Generate memes asynchronously using imgflip MCP.
+
+    Args:
+        meme_concepts: List of meme concept dicts with meme_name_reference and text_to_add
+        llm: Language model for the agent
+
+    Returns:
+        List of generated meme results
+    """
+    # Check for imgflip credentials
+    imgflip_username = os.getenv("IMGFLIP_USERNAME")
+    imgflip_password = os.getenv("IMGFLIP_PASSWORD")
+
+    if not imgflip_username or not imgflip_password:
+        print(
+            "⚠️  IMGFLIP_USERNAME and IMGFLIP_PASSWORD environment variables are required"
+        )
+        return []
+
+    # Get imgflip MCP path from environment or use uvx (published package)
+    imgflip_mcp_dir = os.getenv("IMGFLIP_MCP_DIR")
+
+    # Configure the MCP client for imgflip
+    # Use uvx if no local directory is specified (published package approach)
+    if imgflip_mcp_dir:
+        mcp_config: Dict[str, Any] = {
+            "imgflip": {
+                "command": "uv",
+                "args": [
+                    "--directory",
+                    imgflip_mcp_dir,
+                    "run",
+                    "imgflip-mcp",
+                ],
+                "transport": "stdio",
+                "env": {
+                    "IMGFLIP_USERNAME": imgflip_username,
+                    "IMGFLIP_PASSWORD": imgflip_password,
+                },
+            }
+        }
+    else:
+        print("IMGFlip MCP not found!")
+        return []
+
+    results: List[Dict[str, Any]] = []
+
+    # Create client and use session for stdio transport
+    client = MultiServerMCPClient(cast(Any, mcp_config))
+
+    try:
+        async with client.session("imgflip") as session:
+            # Load tools from the imgflip MCP server session
+            tools = await load_mcp_tools(session)
+
+            if not tools:
+                print("❌ No tools available from imgflip MCP server")
+                return []
+
+            print(f"🔧 Available imgflip tools: {[t.name for t in tools]}")
+
+            # Generate memes sequentially to avoid rate limiting
+            for i, meme_concept in enumerate(meme_concepts):
+                print(
+                    f"\n🎨 Generating meme {i + 1}/{len(meme_concepts)}: "
+                    f"{meme_concept.get('meme_name_reference', 'Unknown')}"
+                )
+
+                result = await _generate_single_meme(meme_concept, tools, llm)
+                if result:
+                    results.append(result)
+    except Exception as e:
+        print(f"❌ Error connecting to imgflip MCP server: {e}")
+        print("   Make sure imgflip-mcp is installed: pip install imgflip-mcp")
+        print("   Or set IMGFLIP_MCP_DIR to point to a local clone of the repo")
+        return []
+
+    return results
+
+
+def generate_meme_assets_node(
+    state: Dict[str, Any], llm: BaseChatModel
+) -> Dict[str, Any]:
+    """
+    Generate meme assets using imgflip MCP.
+
+    Args:
+        state: Pipeline state with meme_concepts.
+        llm: Language model for the agent.
+
+    Returns:
+        Dict with generated_memes list containing meme URLs and metadata.
+    """
+    meme_concepts = state.get("meme_concepts", [])
+
+    if not meme_concepts:
+        print("⚠️  No meme concepts provided")
+        return {"generated_memes": []}
+
+    # Handle different meme_concepts formats
+    processed_concepts = []
+    for concept in meme_concepts:
+        if hasattr(concept, "model_dump"):
+            processed_concepts.append(concept.model_dump())
+        elif hasattr(concept, "dict"):
+            processed_concepts.append(concept.dict())
+        elif isinstance(concept, dict):
+            processed_concepts.append(concept)
+        else:
+            # If it's a string, wrap it in a basic structure
+            processed_concepts.append(
+                {
+                    "meme_name_reference": str(concept),
+                    "text_to_add": [],
+                }
+            )
+
+    print(f"\n🖼️  Generating {len(processed_concepts)} meme(s) using imgflip MCP...")
+
+    # Run the async meme generation
+    try:
+        results = asyncio.run(_generate_memes_async(processed_concepts, llm))
+    except RuntimeError:
+        # If there's already an event loop running, use it
+        loop = asyncio.get_event_loop()
+        results = loop.run_until_complete(
+            _generate_memes_async(processed_concepts, llm)
+        )
+
+    # Summary
+    successful = [r for r in results if r.get("success")]
+    failed = [r for r in results if not r.get("success")]
+
+    print("\n📊 Meme generation summary:")
+    print(f"   ✅ Successful: {len(successful)}")
+    print(f"   ❌ Failed: {len(failed)}")
+
+    if successful:
+        print("\n🖼️  Generated meme URLs:")
+        for meme in successful:
+            print(f"   - {meme.get('meme_name_reference')}: {meme.get('meme_url')}")
+
+    return {"generated_memes": results}
