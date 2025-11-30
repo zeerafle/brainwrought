@@ -32,7 +32,12 @@ def generate_sfx_assets_node(
     elif hasattr(asset_plan, "dict"):
         asset_plan = asset_plan.dict()
 
-    scenes = asset_plan.get("scenes", [])
+    if isinstance(asset_plan, dict):
+        scenes = asset_plan.get("scenes", [])
+    elif isinstance(asset_plan, list):
+        scenes = asset_plan
+    else:
+        scenes = []
 
     # Directories
     sfx_stock_dir = Path("assets/stock/sfx")
@@ -429,7 +434,13 @@ async def generate_meme_assets_node(
     elif hasattr(asset_plan, "dict"):
         asset_plan = asset_plan.dict()
 
-    scenes = asset_plan.get("scenes", [])
+    if isinstance(asset_plan, dict):
+        scenes = asset_plan.get("scenes", [])
+    elif isinstance(asset_plan, list):
+        scenes = asset_plan
+    else:
+        scenes = []
+
     if not scenes:
         print("⚠️  No scenes found in asset_plan")
         return {"generated_memes": []}
