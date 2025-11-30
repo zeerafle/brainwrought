@@ -104,31 +104,6 @@ export const SceneManager: React.FC<BrainrotProps> = ({ scenes, asset_plan, voic
               })
             }
 
-            {/* On-Screen Text Overlay */}
-            {scene.on_screen_text && (
-                <AbsoluteFill style={{
-                    justifyContent: 'flex-start',
-                    alignItems: 'center',
-                    paddingTop: 100,
-                    zIndex: 10
-                }}>
-                    <div style={{
-                        fontFamily: 'monospace',
-                        fontSize: 32,
-                        color: '#00ff00',
-                        backgroundColor: 'rgba(0,0,0,0.8)',
-                        padding: '20px',
-                        borderRadius: '10px',
-                        whiteSpace: 'pre-wrap',
-                        textAlign: 'left',
-                        maxWidth: '80%',
-                        boxShadow: '0 0 10px #00ff00'
-                    }}>
-                        {scene.on_screen_text}
-                    </div>
-                </AbsoluteFill>
-            )}
-
             {finalAudioSrc && (
                <Audio
                 src={finalAudioSrc}

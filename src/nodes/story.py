@@ -85,7 +85,7 @@ def scene_by_scene_script_node(
         "and on-screen text (captions, code, tips). Make it fast-paced, engaging, and meme-heavy. "
         "For technical content, show terminal commands, code snippets, and practical examples.",
         f"Using the following information, create a complete numbered scene-by-scene script for a brainrot-style educational video. "
-        f"Each scene should have: scene_number, on_screen_action, dialogue_vo, and on_screen_text.\n\n"
+        f"Each scene should have: scene_number, on_screen_action, and dialogue_vo.\n\n"
         f"Summary:\n{summary}\n\n"
         f"Key concepts:\n{key_concepts}\n\n"
         f"Hooks:\n{hooks}\n\n"

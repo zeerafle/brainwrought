@@ -27,7 +27,6 @@ class VideoProductionStyle(TypedDict, total=False):
 
     hook_examples: List[str]
     visual_style: str
-    on_screen_text: str
     audio_style: str
     pacing: str
 
@@ -57,7 +56,6 @@ class Scene(TypedDict, total=False):
     scene_number: int
     on_screen_action: str
     dialogue_vo: str
-    on_screen_text: str
 
 
 class SceneAssets(TypedDict, total=False):

@@ -33,7 +33,6 @@ class VideoProductionStyle(BaseModel):
 
     hook_examples: List[str] = Field(description="Example hooks for first 2-3 seconds")
     visual_style: str = Field(description="Visual composition and layout guidelines")
-    on_screen_text: str = Field(description="How to use captions and text overlays")
     audio_style: str = Field(
         description="Music, voiceover, and SFX guidelines. Ex: dynamic, soothing, authoritative"
     )
@@ -67,11 +66,6 @@ class Scene(BaseModel):
     dialogue_vo: str = Field(
         description="Complete voice-over or dialogue script for the scene. "
         "This is what the narrator will say. Keep it punchy and fast-paced for brainrot style."
-    )
-    on_screen_text: str = Field(
-        description="All text overlays, captions, code snippets, terminal commands, meme labels, and tips that appear on screen. "
-        "Can include multiple elements like main captions, code blocks (with proper formatting), "
-        "meme text labels, small tips/notes. Use clear formatting with line breaks (\\n) where needed."
     )
 
 

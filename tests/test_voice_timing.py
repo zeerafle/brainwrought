@@ -17,8 +17,8 @@ import os
 from pathlib import Path
 
 import pytest
-
 from src.agents.production_agents import voice_and_timing_node
+
 from src.config import get_llm
 
 
@@ -51,13 +51,11 @@ def test_english_voice_generation(audio_output_dir):
                 "scene_number": 1,
                 "on_screen_action": "Camera zooms into a floating apple",
                 "dialogue_vo": "Did you know gravity isn't actually a force?",
-                "on_screen_text": "🍎 GRAVITY = ?",
             },
             {
                 "scene_number": 2,
                 "on_screen_action": "Einstein appears with curved spacetime visualization",
                 "dialogue_vo": "Einstein showed us it's actually curved spacetime!",
-                "on_screen_text": "EINSTEIN WAS RIGHT ✨",
             },
         ],
         "audience_profile": {
@@ -142,13 +140,11 @@ def test_turkish_voice_generation(audio_output_dir):
                 "scene_number": 1,
                 "on_screen_action": "Yere düşen elma görseli",
                 "dialogue_vo": "Yerçekimi aslında bir kuvvet değil, biliyor muydunuz?",
-                "on_screen_text": "🍎 YERÇEKİMİ = ?",
             },
             {
                 "scene_number": 2,
                 "on_screen_action": "Einstein'ın eğri uzay-zaman görselleştirmesi",
                 "dialogue_vo": "Einstein bize bunun aslında eğri uzay-zaman olduğunu gösterdi!",
-                "on_screen_text": "EİNSTEİN HAKLI! ✨",
             },
         ],
         "audience_profile": {
@@ -262,7 +258,6 @@ def test_both_languages_with_voice_design(audio_output_dir):
                     "scene_number": 1,
                     "on_screen_action": content["scene_action"],
                     "dialogue_vo": content["dialogue"],
-                    "on_screen_text": content["on_screen"],
                 }
             ],
             "audience_profile": {

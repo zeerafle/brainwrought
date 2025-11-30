@@ -52,7 +52,6 @@ export const SceneSchema = z.object({
   scene_number: z.number(),
   on_screen_action: z.string(),
   dialogue_vo: z.string(),
-  on_screen_text: z.string(),
 });
 
 export const BrainrotPropsSchema = z.object({
