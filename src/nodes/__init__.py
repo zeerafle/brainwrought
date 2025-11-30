@@ -1,24 +1,24 @@
 """Node functions for the pipeline."""
 
-from nodes.ingestion import (
+from .ingestion import (
     combined_analysis_node,
     pdf_to_pages_node,
     quiz_generator_node,
 )
-from nodes.meme import (
+from .meme import (
     hook_concept_node,
     language_slang_node,
     meme_concept_node,
     social_media_trends_node,
 )
-from nodes.production import (
+from .production import (
     deliver_export_node,
     generate_video_assets_node,
     qc_and_safety_node,
     video_editor_renderer_node,
     voice_and_timing_node,
 )
-from nodes.story import (
+from .story import (
     asset_planner_node,
     audience_and_style_profiler_node,
     scene_by_scene_script_node,

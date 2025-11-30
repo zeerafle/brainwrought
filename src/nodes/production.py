@@ -21,83 +21,141 @@ def generate_video_assets_node(
     """
     Generate video assets from scene descriptions using LTX Video model.
 
+    Reads video asset descriptions from asset_plan (List[SceneAssets]),
+    refines prompts with LLM, generates videos via Modal LTX function,
+    and updates asset_plan with volume paths for Remotion.
+
+    Volume structure:
+        ltx-outputs/
+        ├── sessions/{session_id}/
+        │   ├── audio/          # Voice-over files
+        │   └── video/          # Generated video clips
+        │       └── scene_{idx}_asset_{idx}_{timestamp}.mp4
+        └── stock/
+            ├── gameplay/       # Background gameplay footage
+            └── sfx/            # Sound effects
+
     Args:
-        state: Pipeline state with asset_plan containing scenes and video_assets.
-        llm: Language model for refining prompts.
+        state: Pipeline state with:
+            - asset_plan: List[SceneAssets] where each has video_asset: List[str]
+            - session_id: Unique session identifier
 
     Returns:
-        Dict with video_filenames list.
+        Dict with:
+            - video_filenames: List of generated video paths (relative to volume)
+            - asset_plan: Updated List[SceneAssets] with video paths for Remotion
     """
     from langchain_core.messages import HumanMessage, SystemMessage
 
-    asset_plan = state.get("asset_plan", {})
+    # Get asset_plan as list of SceneAssets
+    asset_plan: list = state.get("asset_plan", [])
+
+    # Handle Pydantic models if needed
     if hasattr(asset_plan, "model_dump"):
         asset_plan = asset_plan.model_dump()
     elif hasattr(asset_plan, "dict"):
         asset_plan = asset_plan.dict()
 
-    scenes = asset_plan.get("scenes", [])
-    video_assets = []
+    # Ensure it's a list (SceneAssets are stored directly, not under "scenes" key)
+    if isinstance(asset_plan, dict) and "scenes" in asset_plan:
+        # Legacy format compatibility
+        asset_plan = asset_plan["scenes"]
+
+    if not asset_plan:
+        print("⚠️ No asset_plan found in state, skipping video generation")
+        return {"video_filenames": [], "asset_plan": []}
+
+    session_id = state.get("session_id", "default")
+
+    # Build batch of prompts to refine, tracking source indices
+    # Structure: [(scene_idx, asset_idx, scene_name, description), ...]
+    asset_metadata: list[tuple[int, int, str, str]] = []
     messages_batch = []
 
     system_prompt = """You are a professional artist and text-to-video prompt engineer.
-    You refine the given prompt to be more detail and appropriate for text-to-video model.
-    Only respond with the refined prompt.
+    You refine the given prompt to be more detailed and appropriate for text-to-video model.
+    Focus on visual elements, lighting, camera movement, and atmosphere.
+    Only respond with the refined prompt, nothing else.
     """
 
-    for scene in scenes:
-        for asset in scene["video_assets"]:
-            video_assets.append(asset)
-            messages_batch.append(
-                [
-                    SystemMessage(content=system_prompt),
-                    HumanMessage(
-                        content=f"Scene name: {scene['scene_name']}, Asset description: {asset}"
-                    ),
-                ]
-            )
+    for scene_idx, scene_assets in enumerate(asset_plan):
+        scene_name = scene_assets.get("scene_name", f"Scene {scene_idx + 1}")
+        video_descriptions = scene_assets.get("video_asset", [])
 
+        # Only generate the first video asset per scene
+        if not video_descriptions:
+            continue
+
+        description = video_descriptions[0]
+        asset_idx = 0
+
+        # Skip if already a path (already generated)
+        if description.startswith("vol/") or description.startswith("http"):
+            continue
+
+        asset_metadata.append((scene_idx, asset_idx, scene_name, description))
+        messages_batch.append(
+            [
+                SystemMessage(content=system_prompt),
+                HumanMessage(
+                    content=f"Scene: {scene_name}\nAsset description: {description}"
+                ),
+            ]
+        )
+
+    if not messages_batch:
+        print("ℹ️ No new video assets to generate")
+        return {"video_filenames": [], "asset_plan": asset_plan}
+
+    print(f"🎬 Refining {len(messages_batch)} video prompts...")
     responses = llm.batch(messages_batch)
 
-    video_assets_prompt = [
+    refined_prompts = [
         resp.content if isinstance(resp.content, str) else str(resp.content)
         for resp in responses
     ]
 
-    session_id = state.get("session_id", "default")
+    # Generate videos via Modal LTX function
+    print(f"🎥 Generating {len(refined_prompts)} videos for session: {session_id}...")
     generate_func = modal.Function.from_name("brainwrought-ltx", "LTXVideo.generate")
+
+    # Pass session_id to each generation call
+    # LTX returns paths like: sessions/{session_id}/video/{timestamp}_{prompt_slug}.mp4
     video_filenames = list(
-        generate_func.starmap([(p, session_id) for p in video_assets_prompt])
+        generate_func.starmap([(prompt, session_id) for prompt in refined_prompts])
     )
 
-    # Update asset_plan with generated filenames
-    # We need to map these back to the scenes.
-    # Since we flattened the list for batch processing, we need to reconstruct.
+    print(f"✅ Generated {len(video_filenames)} video files")
 
-    current_idx = 0
-    updated_asset_plan = state.get("asset_plan", [])
-    # Note: state["asset_plan"] is a list of SceneAssets.
-    # But wait, the input to this node was state["asset_plan"] which is a list?
-    # The docstring says "state: Pipeline state with asset_plan containing scenes and video_assets."
-    # Let's assume asset_plan is a list of dicts.
+    # Update asset_plan with generated video paths
+    # Map back using tracked indices
+    updated_asset_plan = [dict(scene) for scene in asset_plan]  # Deep copy
 
-    # Actually, we should probably update the asset_plan in the state to include the generated filenames
-    # so the renderer can find them.
-    # The renderer expects 'video_asset' in asset_plan to be the filename.
+    for (scene_idx, asset_idx, _, _), relative_path in zip(
+        asset_metadata, video_filenames
+    ):
+        # Remotion expects paths prefixed with "vol/" (volume mount point in public/)
+        # relative_path from LTX: sessions/{session_id}/video/{filename}.mp4
+        remotion_path = f"vol/{relative_path}"
 
-    # Let's iterate again and assign filenames
-    for scene in scenes:
-        new_assets = []
-        for _ in scene["video_assets"]:
-            if current_idx < len(video_filenames):
-                # The filename returned by LTX is relative to volume root (e.g. "123_prompt.mp4")
-                # Remotion expects "vol/123_prompt.mp4"
-                filename = video_filenames[current_idx]
-                new_assets.append(f"vol/{filename}")
-                current_idx += 1
-        scene["video_assets"] = new_assets
+        # Update the specific asset in the scene
+        if scene_idx < len(updated_asset_plan):
+            current_assets = updated_asset_plan[scene_idx].get("video_asset", [])
+            if asset_idx < len(current_assets):
+                current_assets[asset_idx] = remotion_path
+            updated_asset_plan[scene_idx]["video_asset"] = current_assets
 
-    return {"video_filenames": video_filenames, "asset_plan": {"scenes": scenes}}
+    # Log summary
+    for scene in updated_asset_plan:
+        scene_name = scene.get("scene_name", "Unknown")
+        assets = scene.get("video_asset", [])
+        generated = [a for a in assets if a.startswith("vol/sessions/")]
+        print(f"   📹 {scene_name}: {len(generated)}/{len(assets)} videos generated")
+
+    return {
+        "video_filenames": video_filenames,
+        "asset_plan": updated_asset_plan,
+    }
 
 
 def voice_and_timing_node(
