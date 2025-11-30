@@ -1,6 +1,7 @@
 """Node functions for meme and trends analysis."""
 
 import random
+import os
 from typing import Any, Dict
 
 from langchain_core.language_models import BaseChatModel
@@ -16,6 +17,10 @@ from models.meme_models import (
 )
 from tools import get_mcp_tools, get_tavily_search
 from utils.llm_utils import structured_llm_call
+
+
+# Get recursion limit from env or default to 15
+RECURSION_LIMIT = int(os.getenv("GRAPH_RECURSION_LIMIT", "15"))
 
 
 # Extended state classes for internal graph use
@@ -131,7 +136,7 @@ Find at least 3 viral examples with their URLs and metrics."""
     try:
         # Invoke the graph
         result = await graph.ainvoke(
-            {"messages": [system_msg, user_msg]}, {"recursion_limit": 15}
+            {"messages": [system_msg, user_msg]}, {"recursion_limit": RECURSION_LIMIT}
         )
 
         final_analysis = result.get("final_analysis")
@@ -238,7 +243,7 @@ Find at least 5 slang terms with meanings and examples."""
 
     try:
         result = await graph.ainvoke(
-            {"messages": [system_msg, user_msg]}, {"recursion_limit": 15}
+            {"messages": [system_msg, user_msg]}, {"recursion_limit": RECURSION_LIMIT}
         )
 
         final_slang = result.get("final_slang")

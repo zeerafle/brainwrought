@@ -86,13 +86,22 @@ class SceneBySceneScript(BaseModel):
     )
 
 
+class SFXAsset(BaseModel):
+    """Sound effect asset with timing."""
+
+    description: str = Field(description="Description or filename of the SFX")
+    timestamp_offset: float = Field(
+        description="Offset in seconds from the start of the scene"
+    )
+
+
 class Assets(BaseModel):
     """Assets required for a scene."""
 
     scene_name: str = Field(description="Name of the scene")
     video_asset: List[str] = Field(description="List of video assets for the scene")
     bgm: List[str] = Field(description="List of background music for the scene")
-    sfx: List[str] = Field(description="List of sound effects for the scene")
+    sfx: List[SFXAsset] = Field(description="List of sound effects for the scene")
 
 
 class Scenes(BaseModel):

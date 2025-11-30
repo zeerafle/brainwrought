@@ -65,11 +65,38 @@ export const SceneManager: React.FC<BrainrotProps> = ({ scenes, asset_plan, voic
         const audioPath = timing?.audio_path;
         const finalAudioSrc = audioPath ? (audioPath.startsWith("http") ? audioPath : staticFile(audioPath)) : null;
 
+        const sfxList = assets?.sfx || [];
+
         return (
           <Sequence key={index} from={startFrame} durationInFrames={durationInFrames} style={{ zIndex: 1 }}>
             {/* Only render MediaLayer if we have a specific asset for this scene */}
             {assetPath && (
                 <MediaLayer assetPath={assetPath} type="video" />
+            )}
+
+            {/* On-Screen Text Overlay */}
+            {scene.on_screen_text && (
+                <AbsoluteFill style={{
+                    justifyContent: 'flex-start',
+                    alignItems: 'center',
+                    paddingTop: 100,
+                    zIndex: 10
+                }}>
+                    <div style={{
+                        fontFamily: 'monospace',
+                        fontSize: 32,
+                        color: '#00ff00',
+                        backgroundColor: 'rgba(0,0,0,0.8)',
+                        padding: '20px',
+                        borderRadius: '10px',
+                        whiteSpace: 'pre-wrap',
+                        textAlign: 'left',
+                        maxWidth: '80%',
+                        boxShadow: '0 0 10px #00ff00'
+                    }}>
+                        {scene.on_screen_text}
+                    </div>
+                </AbsoluteFill>
             )}
 
             {finalAudioSrc && (
@@ -78,6 +105,24 @@ export const SceneManager: React.FC<BrainrotProps> = ({ scenes, asset_plan, voic
                 onError={(e) => console.error(`❌ Failed to load audio: ${finalAudioSrc}`, e)}
                />
             )}
+
+            {/* SFX Layers */}
+            {sfxList.map((sfxItem: any, sfxIndex: number) => {
+                if (!sfxItem.audio_path) return null;
+                const sfxSrc = staticFile(sfxItem.audio_path);
+                // Calculate start frame relative to the scene start
+                // Ensure it doesn't start before the scene (max(0, ...))
+                const offsetFrames = Math.max(0, Math.floor(sfxItem.timestamp_offset * 30));
+
+                return (
+                    <Sequence key={`sfx-${index}-${sfxIndex}`} from={offsetFrames}>
+                        <Audio
+                            src={sfxSrc}
+                            onError={(e) => console.error(`❌ Failed to load SFX: ${sfxSrc}`, e)}
+                        />
+                    </Sequence>
+                );
+            })}
 
             {timing && (
               <WordLevelSubtitles voiceTiming={timing} startFrame={0} />

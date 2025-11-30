@@ -35,16 +35,18 @@ image = (
     )
     .run_commands("npm install -g pnpm")
     # Install dependencies: Copy package.json first to cache the npm install step
-    .add_local_file(remotion_src_path / "package.json", remote_path="/tmp/package.json", copy=True)
+    .add_local_file(
+        remotion_src_path / "package.json", remote_path="/tmp/package.json", copy=True
+    )
     .run_commands(
         "cd /tmp && npm install --legacy-peer-deps",
         "mkdir -p /app/remotion_src",
-        "cp -r /tmp/node_modules /app/"
+        "cp -r /tmp/node_modules /app/",
     )
     .add_local_dir(
         remotion_src_path,
         remote_path=remote_remotion_path,
-        ignore=["node_modules", ".remotion", "out", ".git"],
+        ignore=["node_modules", ".remotion", "out", ".git", "public/vol"],
     )
 )
 
@@ -56,11 +58,12 @@ assets_vol = modal.Volume.from_name(ASSETS_VOLUME_NAME, create_if_missing=True)
 # Remotion's public folder is at /app/remotion_src/public
 ASSETS_PATH = "/app/remotion_src/public/vol"
 
+
 @app.cls(
     image=image,
     volumes={ASSETS_PATH: assets_vol},
-    timeout=1800, # 30 mins
-    cpu=2,
+    timeout=1800,  # 30 mins
+    cpu=8,
     memory=4096,
 )
 class RemotionRenderer:
@@ -76,8 +79,6 @@ class RemotionRenderer:
 
     @modal.method()
     def render_video(self, props: dict) -> bytes:
-        import subprocess
-
         # We need to ensure dependencies are installed.
         # Since we mounted the source code, we might need to run npm install once.
         # But mounts are read-only?
@@ -95,8 +96,8 @@ class RemotionRenderer:
         # So we might not need to install here if everything is correct.
         # However, if we need to install devDependencies or if something is missing:
         if not os.path.exists("node_modules") and not os.path.exists("../node_modules"):
-             print("📦 Installing dependencies...")
-             subprocess.run(["npm", "install", "--legacy-peer-deps"], check=True)
+            print("📦 Installing dependencies...")
+            subprocess.run(["npm", "install", "--legacy-peer-deps"], check=True)
 
         # Write props to file
         props_file = "input_props.json"
@@ -109,11 +110,14 @@ class RemotionRenderer:
         print("🎬 Starting render...")
         # npx remotion render BrainrotComposition out/video.mp4 --props=input_props.json
         cmd = [
-            "npx", "remotion", "render",
+            "npx",
+            "remotion",
+            "render",
             "BrainrotComposition",
             output_file,
             f"--props={props_file}",
-            "--gl=angle", # Often needed in headless envs
+            "--gl=angle",  # Often needed in headless envs
+            "--concurrency=100%",
         ]
 
         subprocess.run(cmd, check=True)
@@ -125,17 +129,13 @@ class RemotionRenderer:
 
         return video_bytes
 
+
 @app.local_entrypoint()
 def main():
     print("🧪 Testing renderer...")
     renderer = RemotionRenderer()
     # Dummy props
-    props = {
-        "scenes": [],
-        "asset_plan": [],
-        "voice_timing": [],
-        "total_duration": 10
-    }
+    props = {"scenes": [], "asset_plan": [], "voice_timing": [], "total_duration": 10}
     try:
         video_bytes = renderer.render_video.remote(props)
         print(f"✅ Render successful! Got {len(video_bytes)} bytes.")

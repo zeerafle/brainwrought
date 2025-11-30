@@ -111,13 +111,26 @@ def asset_planner_node(state: Dict[str, Any], llm: BaseChatModel) -> Dict[str, A
     Returns:
         Dict with asset_plan.
     """
+    import os
+    from pathlib import Path
+
     scenes = state.get("scenes", [])
+
+    # Get list of available SFX
+    sfx_dir = Path("assets/stock/sfx")
+    available_sfx = []
+    if sfx_dir.exists():
+        available_sfx = [f.name for f in sfx_dir.glob("*.mp3")]
 
     plan = structured_llm_call(
         llm,
         "You plan simple reusable assets (clips, BGM, SFX) for social videos.",
         f"Given this scene-by-scene script, list for each scene the suggested video assets, "
-        f"BGM mood, and SFX.\n\nScenes:\n{scenes}",
+        f"BGM mood, and SFX.\n\n"
+        f"Available SFX files (prefer these if suitable):\n{', '.join(available_sfx)}\n\n"
+        f"For SFX, provide a description (or filename if available) and a timestamp_offset (seconds from start of scene).\n"
+        f"If a suitable SFX is not in the list, describe the sound you want (e.g. 'futuristic whoosh', 'digital glitch').\n\n"
+        f"Scenes:\n{scenes}",
         Scenes,
     )
 

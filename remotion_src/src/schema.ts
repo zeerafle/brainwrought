@@ -22,11 +22,17 @@ export const VoiceTimingSchema = z.object({
   ).optional(),
 });
 
+export const SFXAssetSchema = z.object({
+  description: z.string(),
+  timestamp_offset: z.number(),
+  audio_path: z.string().optional(),
+});
+
 export const SceneAssetSchema = z.object({
   scene_name: z.string(),
   video_asset: z.array(z.string()),
   bgm: z.array(z.string()).optional(),
-  sfx: z.array(z.string()).optional(),
+  sfx: z.array(SFXAssetSchema).optional(),
 });
 
 export const SceneSchema = z.object({

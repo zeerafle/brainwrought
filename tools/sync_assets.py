@@ -17,12 +17,13 @@ def upload_stock_assets():
     print(f"📂 Syncing {local_assets_path} to Volume...")
 
     # Walk through the directory
-    for root, _, files in os.walk(local_assets_path):
+    for root, dirs, files in os.walk(local_assets_path):
+        # Ensure os.walk keeps descending into every sub-folder (including sfx/)
         for file in files:
             local_file = Path(root) / file
-            # Calculate relative path for the volume (e.g., stock/gameplay/minecraft.mp4)
             rel_path = local_file.relative_to(local_assets_path)
-            remote_path = str(rel_path) # This will be at the root of the volume?
+            remote_path = str(rel_path).replace(os.sep, "/")
+
             # No, let's put it under 'stock' if it's not already.
             # If local structure is assets/stock/gameplay, rel_path is stock/gameplay/...
 
