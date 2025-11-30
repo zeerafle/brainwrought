@@ -105,6 +105,10 @@ async def get_mcp_tools(client: MultiServerMCPClient | None = None) -> list:
     Returns:
         List of MCP tools for LangChain integration.
     """
+    if os.getenv("DISABLE_MCP", "").lower() in ("true", "1", "yes"):
+        print("🚫 MCP tools disabled by configuration.")
+        return []
+
     try:
         if client is None:
             client = get_mcp_client()

@@ -117,7 +117,7 @@ class RemotionRenderer:
             output_file,
             f"--props={props_file}",
             "--gl=angle",  # Often needed in headless envs
-            "--concurrency=100%",
+            "--concurrency=80%",
         ]
 
         subprocess.run(cmd, check=True)
