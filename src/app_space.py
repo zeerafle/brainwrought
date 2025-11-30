@@ -30,6 +30,7 @@ from pathlib import Path
 from typing import Dict, Optional
 
 import gradio as gr
+from gradio_pdf import PDF
 from huggingface_hub import HfApi
 
 # Import pipeline
@@ -341,6 +342,49 @@ with gr.Blocks(title="Brainwrought | Food for your brain") as demo:
             inputs=[job_id_in],
             outputs=[status, progress, logs, video_url, local_path],
         )
+
+    gr.Markdown("## Baked brainwrought for you")
+
+    # Replace these with your actual files/URLs
+    pdf_path = "yapay-sinir-aglariercan-oztemel-ch1-2.pdf"  # local file in repo root (or an absolute path / URL)
+    video_src = (
+        "rendered_videos/final_video_tr.mp4"  # local file (or an absolute path / URL)
+    )
+
+    # Two-column layout, equal heights, fixed height for consistent look
+    with gr.Tab(label="English (CLIPS Programming Language)"):
+        with gr.Row(equal_height=True):
+            with gr.Column(scale=5, min_width=360):
+                PDF(
+                    label="Source PDF",
+                    value="CLIPS basics.pdf",  # can be path or URL
+                    interactive=True,
+                    height=640,  # adjust to taste
+                )
+            with gr.Column(scale=5, min_width=360):
+                gr.Video(
+                    label="Generated Video",
+                    value="rendered_videos/final_video.mp4",  # can be path or URL
+                    autoplay=True,
+                    height=640,
+                )
+
+    with gr.Tab(label="Turkish (Introduction to Neural Networks)"):
+        with gr.Row(equal_height=True):
+            with gr.Column(scale=5, min_width=360):
+                PDF(
+                    label="Source PDF",
+                    value="yapay-sinir-aglariercan-oztemel-ch1-2.pdf",  # can be path or URL
+                    interactive=True,
+                    height=640,  # adjust to taste
+                )
+            with gr.Column(scale=5, min_width=360):
+                gr.Video(
+                    label="Generated Video",
+                    value="rendered_videos/final_video_tr.mp4",  # can be path or URL
+                    autoplay=False,
+                    height=640,
+                )
 
     # Autofill job_id from query params when the app loads
     demo.load(
