@@ -45,7 +45,7 @@ async def generate_video_assets_node(
 
     if not scenes_list:
         print("⚠️ No asset_plan found in state, skipping video generation")
-        return {"video_filenames": [], "asset_plan": []}
+        return {"video_filenames": [], "asset_plan": {"scenes": []}}
 
     session_id = state.get("session_id", "default")
 
@@ -89,7 +89,7 @@ async def generate_video_assets_node(
 
     if not gen_tasks:
         print("ℹ️ No new 'video' type assets to generate")
-        return {"video_filenames": [], "asset_plan": scenes_list}
+        return {"video_filenames": [], "asset_plan": {"scenes": scenes_list}}
 
     # Generate videos via Modal LTX function using original descriptions
     print(f"🎥 Generating {len(gen_tasks)} videos for session: {session_id}...")
@@ -135,7 +135,7 @@ async def generate_video_assets_node(
 
     return {
         "video_filenames": video_filenames,
-        "asset_plan": updated_plan,
+        "asset_plan": {"scenes": updated_plan},
     }
 
 

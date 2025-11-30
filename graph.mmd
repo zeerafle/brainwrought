@@ -51,12 +51,11 @@ graph TD;
 	production_pipeline\3aqc_and_safety(qc_and_safety)
 	production_pipeline\3adeliver_export(deliver_export)
 	production_pipeline\3a__start__ --> production_pipeline\3agenerate_meme_assets;
-	production_pipeline\3a__start__ --> production_pipeline\3agenerate_sfx;
 	production_pipeline\3a__start__ --> production_pipeline\3agenerate_video_assets;
 	production_pipeline\3a__start__ --> production_pipeline\3avoice_and_timing;
 	production_pipeline\3agenerate_meme_assets --> production_pipeline\3avideo_editor_renderer;
 	production_pipeline\3agenerate_sfx --> production_pipeline\3avideo_editor_renderer;
-	production_pipeline\3agenerate_video_assets --> production_pipeline\3avideo_editor_renderer;
+	production_pipeline\3agenerate_video_assets --> production_pipeline\3agenerate_sfx;
 	production_pipeline\3aqc_and_safety --> production_pipeline\3adeliver_export;
 	production_pipeline\3avideo_editor_renderer --> production_pipeline\3aqc_and_safety;
 	production_pipeline\3avoice_and_timing --> production_pipeline\3avideo_editor_renderer;
